@@ -3,6 +3,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Brief v1 Beta",
   description: "Keep it brief, get it done. Arbetsorder, företag och projekt.",
+  other: {
+    "brief-source": "Hafflarn/Brief-Beta-v1-beta-final",
+    "brief-commit": process.env.NEXT_PUBLIC_APP_COMMIT || "local",
+  },
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (

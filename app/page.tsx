@@ -5,6 +5,8 @@ import Logo from "./components/logo";
 import ThemePicker from "./components/theme";
 import { useNavigation } from "./components/navigation";
 import { cloudEnabled, supabase } from "../lib/supabase";
+import { readPreference, writePreference } from "../lib/browser-storage";
+import { withTimeout } from "../lib/network";
 import * as cloud from "../lib/beta-cloud";
 import { demo, demoApply } from "../lib/demo";
 import {
@@ -211,6 +213,7 @@ function Tips({ manager }: { manager: boolean }) {
 export default function Home() {
   const [s, setS] = useState<Snapshot | null>(null);
   const [checking, setChecking] = useState(cloudEnabled);
+  const connectionVersion = useRef(0);
   const [isDemo, setIsDemo] = useState(false);
   const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>(
     [],
@@ -252,9 +255,7 @@ export default function Home() {
   const manager = me ? manages(me) : false;
   useEffect(() => {
     try {
-      const saved = JSON.parse(
-        sessionStorage.getItem("brief-list-view") || "{}",
-      );
+      const saved = JSON.parse(readPreference("brief-list-view", true) || "{}");
       setFilter(saved.filter || "Alla");
       setQuery(saved.query || "");
       setSearchStatus(saved.searchStatus || "");
@@ -262,34 +263,52 @@ export default function Home() {
     } catch {}
   }, []);
   useEffect(() => {
-    sessionStorage.setItem(
+    writePreference(
       "brief-list-view",
       JSON.stringify({ filter, query, searchStatus, searchPerson }),
+      true,
     );
   }, [filter, query, searchStatus, searchPerson]);
   async function connect() {
-    const recovery =
-      typeof window !== "undefined" &&
-      (/type=recovery/.test(window.location.hash) ||
-        window.location.hash === "#/password");
-    if (supabase) {
-      const { data, error } = await supabase.auth.getSession();
-      if (error) throw error;
-      if (!data.session) {
-        setChecking(false);
-        return;
+    const version = ++connectionVersion.current;
+    const current = () => version === connectionVersion.current;
+    try {
+      const recovery =
+        typeof window !== "undefined" &&
+        (/type=recovery/.test(window.location.hash) ||
+          window.location.hash === "#/password");
+      if (supabase) {
+        const { data, error } = await withTimeout(supabase.auth.getSession());
+        if (!current()) return;
+        if (error) throw error;
+        if (!data.session) {
+          setS(null);
+          setChecking(false);
+          return;
+        }
       }
+      const list = await withTimeout(cloud.bootstrap());
+      if (!current()) return;
+      setWorkspaces(list);
+      if (!list.length)
+        throw Error("Din profil är inaktiverad. Kontakta din arbetsledare.");
+      const chosen =
+        list.find((w) => w.id === readPreference("brief-workspace")) || list[0];
+      const loaded = await withTimeout(cloud.load(chosen.id));
+      if (!current()) return;
+      if (
+        !loaded?.people?.some(
+          (person) =>
+            person.id === loaded.user && person.active && !person.deleted,
+        )
+      )
+        throw Error("Din profil kunde inte öppnas. Kontakta din arbetsledare.");
+      setS(loaded);
+      setMessage("");
+      if (recovery) navigate("/password");
+    } finally {
+      if (current()) setChecking(false);
     }
-    const list = await cloud.bootstrap();
-    setWorkspaces(list);
-    if (!list.length)
-      throw Error("Din profil är inaktiverad. Kontakta din arbetsledare.");
-    const chosen =
-      list.find((w) => w.id === localStorage.getItem("brief-workspace")) ||
-      list[0];
-    setS(await cloud.load(chosen.id));
-    setChecking(false);
-    if (recovery) navigate("/password");
   }
   useEffect(() => {
     if (!supabase) return;
@@ -299,12 +318,16 @@ export default function Home() {
     });
     const { data } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") {
+        connectionVersion.current++;
         setS(null);
         setChecking(false);
       }
       if (event === "PASSWORD_RECOVERY") navigate("/password");
     });
-    return () => data.subscription.unsubscribe();
+    return () => {
+      connectionVersion.current++;
+      data.subscription.unsubscribe();
+    };
   }, []); // Initial session only. Manual login keeps its animation mounted.
   useEffect(() => {
     setRouteDirty(!!note.trim() || !!files.length || !!closing.trim());
@@ -390,13 +413,34 @@ export default function Home() {
   ) {
     setDialog({ title, body, label, action, danger });
   }
-  if (checking) return <main className="session-check" aria-label="Brief" />;
+  if (checking)
+    return (
+      <main className="session-check" aria-label="Brief" aria-busy="true">
+        <p role="status">Hämtar din arbetsyta…</p>
+      </main>
+    );
   if (!s || !me)
     return (
       <>
         {message && (
           <div className="global-error" role="alert">
             {message}
+            {supabase && (
+              <button
+                onClick={() => {
+                  setChecking(true);
+                  void connect().catch((error) =>
+                    setMessage(
+                      error instanceof Error
+                        ? error.message
+                        : "Anslutningen misslyckades.",
+                    ),
+                  );
+                }}
+              >
+                Försök igen
+              </button>
+            )}
           </div>
         )}
         <Login
@@ -1572,7 +1616,7 @@ export default function Home() {
                   if (dirty && !confirm("Lämna osparade ändringar?")) return;
                   try {
                     setS(await cloud.load(e.target.value));
-                    localStorage.setItem("brief-workspace", e.target.value);
+                    writePreference("brief-workspace", e.target.value);
                     setDirty(false);
                     go("/orders");
                   } catch (err) {

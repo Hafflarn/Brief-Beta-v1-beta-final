@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
+import { readPreference, writePreference } from "../../lib/browser-storage";
 export type Theme = "light" | "dark" | "auto";
 export default function ThemePicker() {
   const [theme, setTheme] = useState<Theme>("auto");
   useEffect(() => {
-    setTheme((localStorage.getItem("brief-theme") || "auto") as Theme);
+    const saved = readPreference("brief-theme");
+    setTheme(saved === "light" || saved === "dark" ? saved : "auto");
   }, []);
   useEffect(() => {
     const mq = matchMedia("(prefers-color-scheme: dark)");
@@ -25,7 +27,7 @@ export default function ThemePicker() {
         onChange={(e) => {
           const value = e.target.value as Theme;
           setTheme(value);
-          localStorage.setItem("brief-theme", value);
+          writePreference("brief-theme", value);
         }}
       >
         <option value="auto">◐ Automatiskt</option>
