@@ -1,0 +1,20 @@
+import type { Metadata } from "next";
+import "./globals.css";
+export const metadata: Metadata = {
+  title: "Brief v1 Beta",
+  description: "Keep it brief, get it done. Arbetsorder, företag och projekt.",
+};
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="sv" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('brief-theme')||'auto';document.documentElement.dataset.theme=t==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;}catch(e){}`,
+          }}
+        />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
