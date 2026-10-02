@@ -1,3 +1,0 @@
-module.exports=[33290,a=>{"use strict";var b=a.i(7997);a.s(["default",0,function({children:a}){return(0,b.jsxs)("html",{lang:"sv",suppressHydrationWarning:!0,children:[(0,b.jsx)("head",{children:(0,b.jsx)("script",{dangerouslySetInnerHTML:{__html:"try{var t=localStorage.getItem('brief-theme')||'auto';document.documentElement.dataset.theme=t==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;}catch(e){}"}})}),(0,b.jsx)("body",{children:a})]})},"metadata",0,{title:"Brief v1 Beta",description:"Keep it brief, get it done. Arbetsorder, företag och projekt."}])},70864,function(a){a.n(a.i(33290))}];
-
-//# sourceMappingURL=app_layout_tsx_2144vk_._.js.map
