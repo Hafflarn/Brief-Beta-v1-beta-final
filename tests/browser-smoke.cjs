@@ -243,6 +243,40 @@ const server = require("node:child_process").spawn(
     .click();
   await page.getByRole("button", { name: "Nytt bolag Beställare" }).waitFor();
   assert.equal(errors.length, 0, errors.join("\n"));
+  const privateContext = await browser.newContext({
+    viewport: { width: 320, height: 740 },
+  });
+  await privateContext.addInitScript(() => {
+    for (const name of ["localStorage", "sessionStorage"])
+      Object.defineProperty(window, name, {
+        get() {
+          throw new DOMException("Storage denied", "SecurityError");
+        },
+      });
+  });
+  const privatePage = await privateContext.newPage();
+  const privateErrors = [];
+  privatePage.on("pageerror", (error) => privateErrors.push(error.message));
+  await privatePage.goto("http://127.0.0.1:3005");
+  await privatePage
+    .getByRole("heading", { name: "Välkommen tillbaka" })
+    .waitFor();
+  await privatePage.getByLabel("Tema", { exact: true }).selectOption("dark");
+  await privatePage
+    .getByRole("button", { name: "Öppna demonstration" })
+    .click();
+  await privatePage
+    .getByRole("heading", { name: "Arbetsorder", exact: true })
+    .waitFor();
+  assert.equal(
+    await privatePage.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+    true,
+    "320px mobile viewport must not overflow",
+  );
+  assert.deepEqual(privateErrors, []);
+  await privateContext.close();
   console.log(
     "PASS: desktop/mobile, theme, one-line tips, filters, old-order search, back navigation, unsaved guard, completion/reopening, trash/restore, contact profile, personnel editing and role visibility",
   );

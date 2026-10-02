@@ -262,6 +262,9 @@ time {
 .session-check {
   min-height: 100dvh;
   background: var(--page);
+  display: grid;
+  place-items: center;
+  padding: 24px;
 }
 .login-page {
   min-height: 100dvh;

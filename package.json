@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
+    "prebuild": "node scripts/check-env.cjs",
     "build": "next build",
+    "dev:lan": "next dev --hostname 0.0.0.0",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.cjs",

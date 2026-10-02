@@ -1,6 +1,7 @@
 "use client";
 import { FormEvent, useRef, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { configurationError, supabase } from "../lib/supabase";
+import { withTimeout } from "../lib/network";
 import Logo from "./components/logo";
 import ThemePicker from "./components/theme";
 export default function Login({
@@ -34,35 +35,43 @@ export default function Login({
       phone: f.get("phone"),
     };
     try {
-      if (!supabase)
-        throw Error(
-          "Supabase saknas. Följ installationen eller öppna demonstrationen.",
-        );
+      if (!supabase) throw Error(configurationError);
       if (mode === "reset") {
-        const { error } = await supabase.auth.updateUser({ password });
+        const { error } = await withTimeout(
+          supabase.auth.updateUser({ password }),
+        );
         if (error) throw error;
         await onReady();
         return;
       }
       if (mode === "signup") {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { data: metadata, emailRedirectTo: window.location.origin },
-        });
+        const { data, error } = await withTimeout(
+          supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: metadata,
+              emailRedirectTo: window.location.origin,
+            },
+          }),
+        );
         if (error) throw error;
         if (!data.session) {
           setMessage("Kontrollera din e-post och bekräfta kontot.");
           return;
         }
       } else if (mode === "complete") {
-        const { error } = await supabase.auth.updateUser({ data: metadata });
+        const { error } = await withTimeout(
+          supabase.auth.updateUser({ data: metadata }),
+        );
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { error } = await withTimeout(
+          supabase.auth.signInWithPassword({
+            email,
+            password,
+          }),
+        );
         if (error) throw error;
       }
       setSuccess(true);

@@ -29,8 +29,8 @@ Skripten kan köras om. Importen skriver inte över befintliga nya poster. Skrip
 1. Aktivera e-post/lösenord som inloggningsmetod.
 2. Aktivera Confirm email. Appen kräver bekräftad e-post även om denna inställning skulle råka vara av.
 3. Låt Secure email change vara aktiverat. Då behöver ett e-postbyte bekräftas innan nya adressen används.
-4. Under URL Configuration, sätt Site URL till `https://brief.nu`.
-5. Lägg till exakta tillåtna Redirect URLs: `https://brief.nu`, `https://brief.nu/**`, din Vercel-adress och `http://localhost:3000/**` för lokal utveckling. Lägg till eventuell www-adress om den används. Undvik breda wildcard-regler över andra projekts domäner.
+4. Under URL Configuration, sätt Site URL till `https://www.brief.nu/`, den adress som Brief.nu omdirigerar till.
+5. Tillåt `https://www.brief.nu`, `https://www.brief.nu/` och `https://www.brief.nu/#/password` för appens bekräftelse- och återställningsflöden. Lägg till utvecklings- och preview-adresser separat när de faktiskt används. Undvik breda wildcard-regler över andra projekts domäner.
 6. Kontrollera e-postmallarna för registrering, e-postbyte och lösenordsåterställning. Vid egen HTML-mall ska Supabases `{{ .ConfirmationURL }}` användas.
 7. Konfigurera egen SMTP för e-postleverans när betan används av riktiga kollegor; kontrollera aktuella gränser i ditt Supabase-konto.
 
@@ -63,6 +63,10 @@ npm run dev
 
 ## 4. Vercel
 
+Brief.nu är kopplad till projektet `brief-beta-v1-beta-final` och källan `Hafflarn/Brief-Beta-v1-beta-final`, grenen `main`. Det äldre repot `Hafflarn/Brief-app` är en annan version. Publicera inte äldre kod eller kör dess SQL som reparation av Beta.
+
+Sidans metadata `brief-source` och `brief-commit` visar vilken källa och commit bygget kommer från. Jämför dem på dator och mobil före cacheåtgärder. Appen registrerar ingen service worker; behåll Next.js standardcache för versionsmärkta resurser.
+
 1. Importera eller öppna GitHub-projektet i Vercel.
 2. Framework Preset: Next.js. Node.js: 22.x eller senare kompatibel version.
 3. Root Directory: mappen med `package.json`.
@@ -77,6 +81,10 @@ npm run dev
 | CRON_SECRET | Lång slumpmässig hemlighet | Endast server |
 
 De publika variablerna behövs när appen byggs. Lägg dem på rätt Vercel-miljö och bygg om efter ändringar. Lägg aldrig service_role-nyckeln i en `NEXT_PUBLIC_`-variabel. Ingen serverhemlighet följer med till klientkoden.
+
+Produktionsbygget avbryts om publik konfiguration saknas. Kontrollen verifierar format, inte nyckelns giltighet: kopiera nyckeln från rätt Supabase-projekt, aldrig från ett äldre exempel. Bygg om efter ändringar. Lokala byggen utan konfiguration behåller det uttryckliga demoläget.
+
+För ett lokalt nätverkstest finns `npm run dev:lan`. Lokal HTTP på en LAN-adress kan sakna säkra webbläsar-API:er; använd HTTPS-preview för fullständiga mobiltester. Logga in på samma kanoniska adress och konto på båda enheterna. Lokal demo och lagrade sessioner delas inte mellan enheter.
 
 6. Deploy. Testa Vercel-adressen före domänbytet.
 7. Lägg till `brief.nu` under Domains och följ DNS-posterna som Vercel faktiskt visar. Kontrollera HTTPS och eventuell omdirigering mellan www och utan www.

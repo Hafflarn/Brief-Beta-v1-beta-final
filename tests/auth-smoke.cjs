@@ -164,6 +164,26 @@ const server = require("node:child_process").spawn(
     "http://127.0.0.1:3006/#access_token=fixture-access-token&refresh_token=fixture-refresh-token&token_type=bearer&expires_in=3600&type=recovery",
   );
   await page.getByRole("heading", { name: "Välj nytt lösenord" }).waitFor();
+  const stalled = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    storageState: await page.context().storageState(),
+  });
+  const stalledPage = await stalled.newPage();
+  const stalledErrors = [];
+  stalledPage.on("pageerror", (error) => stalledErrors.push(error.message));
+  await stalledPage.route("https://brief-tests.supabase.co/**", () => {});
+  await stalledPage.goto("http://127.0.0.1:3006");
+  await stalledPage.getByText("Hämtar din arbetsyta…").waitFor();
+  await stalledPage.getByRole("alert").waitFor({ timeout: 22000 });
+  await stalledPage
+    .getByRole("button", { name: "Försök igen", exact: true })
+    .waitFor();
+  await stalledPage
+    .getByRole("heading", { name: "Välkommen tillbaka" })
+    .waitFor();
+  assert.equal(await stalledPage.locator(".session-check").count(), 0);
+  assert.deepEqual(stalledErrors, []);
+  await stalled.close();
   console.log(
     "PASS: password recovery callback, failed login never animates, registration fields and confirmation, successful login animation remains on login page then opens workspace, cleanup requires authentication",
   );
