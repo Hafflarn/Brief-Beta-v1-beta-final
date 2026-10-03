@@ -92,7 +92,7 @@ export function demo(): Snapshot {
       number: "BR-2026-018",
       customerNumber: "559927",
       name: "Lägenhetsrenovering",
-      address: "Storgatan 12",
+      address: "Storgatan 12, Hallstahammar",
       archived: false,
       connections: [
         {
@@ -123,9 +123,7 @@ export function demo(): Snapshot {
     title,
     description:
       "Kontakta hyresgästen före besök. Skydda golvet under arbetet.",
-    address: ["Storgatan 12", "Parkvägen 8", "Björkgatan 4", "Stationsgatan 9"][
-      i
-    ],
+    address: ["Storgatan 12", "Parkvägen 8", "Björkgatan 4", "Stationsgatan 9"][i] + ", Hallstahammar",
     assignee: i === 1 ? "erik" : "samuel",
     issuedBy: "anna",
     issuedAt: at,

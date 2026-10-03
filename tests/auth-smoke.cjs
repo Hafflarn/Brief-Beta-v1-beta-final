@@ -114,7 +114,7 @@ const server = require("node:child_process").spawn(
     });
   });
   await page.goto("http://127.0.0.1:3006");
-  await page.getByRole("heading", { name: "Välkommen tillbaka" }).waitFor();
+  await page.getByText("Logga in till din arbetsyta.", { exact: true }).waitFor();
   assert.equal(await page.locator(".global-error").count(), 0);
   await page.getByLabel("E-post", { exact: true }).fill("samuel@example.se");
   await page.getByLabel("Lösenord", { exact: true }).fill("wrong-password");
@@ -126,7 +126,8 @@ const server = require("node:child_process").spawn(
   await page
     .getByRole("button", { name: "Nytt konto? Registrera dig" })
     .click();
-  await page.getByLabel("Namn", { exact: true }).fill("Samuel");
+  await page.getByLabel("Förnamn", { exact: true }).fill("Samuel");
+  await page.getByLabel("Efternamn", { exact: true }).fill("Fredriksson");
   await page.getByLabel("Yrkesroll", { exact: true }).fill("Snickare");
   await page.getByLabel("Företag", { exact: true }).fill("Elvbygg");
   await page.getByLabel("Telefon", { exact: true }).fill("0701234567");
@@ -152,7 +153,7 @@ const server = require("node:child_process").spawn(
   assert.equal(await page.locator(".login-page").count(), 1);
   assert.equal(await page.locator(".loading").count(), 0);
   await page
-    .getByRole("heading", { name: "Arbetsorder", exact: true })
+    .getByRole("heading", { name: "Översikt", exact: true })
     .waitFor();
   assert.equal(
     (await page.request.get("http://127.0.0.1:3006/api/cleanup")).status(),
@@ -179,7 +180,7 @@ const server = require("node:child_process").spawn(
     .getByRole("button", { name: "Försök igen", exact: true })
     .waitFor();
   await stalledPage
-    .getByRole("heading", { name: "Välkommen tillbaka" })
+    .getByText("Logga in till din arbetsyta.", { exact: true })
     .waitFor();
   assert.equal(await stalledPage.locator(".session-check").count(), 0);
   assert.deepEqual(stalledErrors, []);

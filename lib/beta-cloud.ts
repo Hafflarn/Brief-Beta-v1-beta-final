@@ -84,3 +84,10 @@ export async function contactProfile(
     email: string;
   } | null;
 }
+
+export type DirectoryPerson = { id: string; name: string; job: string; employer: string };
+export async function searchDirectory(workspace: string, query: string): Promise<DirectoryPerson[]> {
+  const { data, error } = await client().rpc("brief_beta_search_directory", { workspace_id: workspace, company_query: query });
+  if (error) throw Error(error.message);
+  return data;
+}

@@ -29,12 +29,14 @@ export default function Login({
     const email = String(f.get("email") || "").trim();
     const password = String(f.get("password") || "");
     const metadata = {
-      full_name: f.get("name"),
+      full_name: [f.get("firstName"), f.get("lastName")].map(v=>String(v || "").trim()).join(" "),
       job_title: f.get("job"),
       company_name: f.get("employer"),
       phone: f.get("phone"),
     };
     try {
+      if ((mode === "signup" || mode === "complete") && (!String(f.get("firstName") || "").trim() || !String(f.get("lastName") || "").trim())) throw Error("Ange både förnamn och efternamn.");
+      if ((mode === "signup" || mode === "complete") && metadata.full_name.length > 150) throw Error("För- och efternamn får tillsammans vara högst 150 tecken.");
       if (!supabase) throw Error(configurationError);
       if (mode === "reset") {
         const { error } = await withTimeout(
@@ -105,19 +107,17 @@ export default function Login({
       <div className="login-brand">
         <Logo success={success} large />
         <p>Keep it brief, get it done.</p>
-        <small>Brief v1 Beta</small>
+
       </div>
       <section className="login-card" aria-busy={busy}>
-        <h1>
-          {mode === "login"
-            ? "Välkommen tillbaka"
-            : mode === "signup"
+        {mode !== "login" && <h1>
+          {mode === "signup"
               ? "Skapa ditt konto"
               : mode === "complete"
                 ? "Komplettera din profil"
                 : "Nytt lösenord"}
-        </h1>
-        <p className="muted">
+        </h1>}
+        <p className="muted login-intro">
           {mode === "login"
             ? "Logga in till din arbetsyta."
             : mode === "signup"
@@ -129,14 +129,15 @@ export default function Login({
             {(mode === "signup" || mode === "complete") && (
               <>
                 <label>
-                  Namn
+                  Förnamn
                   <input
-                    name="name"
+                    name="firstName"
                     required
                     maxLength={150}
-                    autoComplete="name"
+                    autoComplete="given-name"
                   />
                 </label>
+                <label>Efternamn<input name="lastName" required maxLength={150} autoComplete="family-name" /></label>
                 <label>
                   Yrkesroll
                   <input
@@ -264,6 +265,7 @@ export default function Login({
           </button>
         )}
       </section>
+      <small className="login-version">Brief v1 Beta</small>
     </main>
   );
 }
