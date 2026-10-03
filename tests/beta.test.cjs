@@ -64,6 +64,15 @@ test("Database authorizes every business action and isolates workspaces", async 
   await db.exec(stub);
   await db.exec(schema);
   await db.exec(schema);
+  await db.exec(
+    fs.readFileSync(
+      path.join(
+        __dirname,
+        "../supabase/migrations/20261003142406_order_sections.sql",
+      ),
+      "utf8",
+    ),
+  );
   const ids = {
     admin: crypto.randomUUID(),
     lead: crypto.randomUUID(),
@@ -241,6 +250,135 @@ test("Database authorizes every business action and isolates workspaces", async 
   await apply(ids.admin, order(o1, worker));
   await apply(ids.admin, order(o2, admin));
   await apply(ids.admin, order(o3, lead));
+  const controlledId = crypto.randomUUID();
+  await apply(ids.admin, {
+    ...order(controlledId, worker),
+    controls: { self: { enabled: true }, risk: { enabled: true } },
+    selfLabels: "Kontrollera underlag\nDokumentera arbetet",
+    start: "2026-10-03",
+    due: "2026-10-04",
+    access: "Nyckel hos beställaren",
+  });
+  let controlled = (await load()).orders.find((o) => o.id === controlledId);
+  assert.equal(controlled.controls.self.items.length, 2);
+  await assert.rejects(
+    () =>
+      apply(ids.worker, {
+        kind: "set_status",
+        id: controlledId,
+        status: "Avslutad",
+      }),
+    /Egenkontrollen/,
+  );
+  await assert.rejects(
+    () =>
+      apply(ids.other, {
+        kind: "set_control",
+        id: controlledId,
+        control: "self",
+        item: controlled.controls.self.items[0].id,
+        done: true,
+      }),
+    /aktiv profil/,
+  );
+  await assert.rejects(
+    () =>
+      apply(ids.worker, {
+        kind: "edit_order",
+        ...controlled,
+        controls: { self: { enabled: false } },
+      }),
+    /redigera orderuppgifter/,
+  );
+  await apply(ids.worker, {
+    kind: "set_control",
+    id: controlledId,
+    control: "self",
+    item: controlled.controls.self.items[0].id,
+    done: true,
+    comment: "Foto i dagboken",
+    author: admin,
+    at: "1990-01-01",
+  });
+  controlled = (await load()).orders.find((o) => o.id === controlledId);
+  assert.equal(controlled.controls.self.items[0].author, worker);
+  assert.notEqual(controlled.controls.self.items[0].at, "1990-01-01");
+  await apply(ids.admin, {
+    ...controlled,
+    kind: "edit_order",
+    controls: { self: { enabled: false } },
+  });
+  controlled = (await load()).orders.find((o) => o.id === controlledId);
+  assert.equal(controlled.controls.self.enabled, false);
+  assert.equal(controlled.controls.self.items[0].comment, "Foto i dagboken");
+  await apply(ids.admin, {
+    ...controlled,
+    kind: "edit_order",
+    controls: { self: { enabled: true } },
+  });
+  await assert.rejects(
+    () =>
+      apply(ids.worker, {
+        kind: "set_status",
+        id: controlledId,
+        status: "Avslutad",
+      }),
+    /Egenkontrollen/,
+  );
+  await apply(ids.worker, {
+    kind: "set_control",
+    id: controlledId,
+    control: "self",
+    item: controlled.controls.self.items[1].id,
+    done: true,
+    comment: "Klart",
+  });
+  await apply(ids.worker, {
+    kind: "set_access",
+    id: controlledId,
+    keysReceived: true,
+    keysReturned: true,
+  });
+  await apply(ids.worker, {
+    kind: "set_status",
+    id: controlledId,
+    status: "Avslutad",
+  });
+  controlled = (await load()).orders.find((o) => o.id === controlledId);
+  assert.equal(controlled.keysReturned, true);
+  assert.equal(controlled.status, "Avslutad");
+  await assert.rejects(
+    () =>
+      apply(ids.worker, {
+        kind: "set_control",
+        id: controlledId,
+        control: "self",
+        item: controlled.controls.self.items[0].id,
+        done: false,
+      }),
+    /Återöppna/,
+  );
+  const duplicated = await apply(ids.admin, {
+    kind: "duplicate_order",
+    id: controlledId,
+  });
+  const copy = duplicated.orders.find(
+    (o) => o.id !== controlledId && o.number === controlled.number + " (kopia)",
+  );
+  assert.equal(
+    copy.controls.self.items.some((i) => i.done || i.at || i.comment),
+    false,
+  );
+  await assert.rejects(
+    () =>
+      apply(ids.admin, {
+        ...order(crypto.randomUUID(), worker),
+        controls: { self: { enabled: true } },
+        selfLabels: "",
+      }),
+    /minst en/,
+  );
+
   await assert.rejects(
     () => apply(ids.lead, order(crypto.randomUUID(), admin)),
     /egen rollnivå/,
