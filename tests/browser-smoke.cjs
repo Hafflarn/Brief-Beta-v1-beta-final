@@ -41,7 +41,7 @@ const server = require("node:child_process").spawn(
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("http://127.0.0.1:3005");
-  await page.getByRole("heading", { name: "Välkommen tillbaka" }).waitFor();
+  await page.getByText("Logga in till din arbetsyta.", { exact: true }).waitFor();
   await page.getByLabel("Tema", { exact: true }).selectOption("dark");
   await page.screenshot({
     path: require("node:path").resolve(
@@ -52,19 +52,13 @@ const server = require("node:child_process").spawn(
   });
   await page.getByRole("button", { name: "Öppna demonstration" }).click();
   await page
-    .getByRole("heading", { name: "Arbetsorder", exact: true })
+    .getByRole("heading", { name: "Översikt", exact: true })
     .waitFor();
   assert.equal(
     await page.getByText("Äldre avslutad order", { exact: true }).count(),
-    0,
+    1,
   );
-  assert.deepEqual(await page.locator(".filters button").allTextContents(), [
-    "Alla",
-    "Mina ordrar",
-    "Påbörjade",
-    "Ej påbörjade",
-    "Avslutade",
-  ]);
+  assert.deepEqual(await page.locator(".order-scope button").allTextContents(), ["Mina arbetsorder", "Företagets arbetsorder"]);
   await page.screenshot({
     path: require("node:path").resolve(
       __dirname,
@@ -72,10 +66,8 @@ const server = require("node:child_process").spawn(
     ),
     fullPage: true,
   });
-  await page
-    .getByRole("navigation")
-    .getByRole("button", { name: "Sök", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Öppna kontomeny" }).click();
+  await page.getByRole("button", { name: "Sök", exact: true }).click();
   await page.getByRole("heading", { name: "Sök arbetsorder" }).waitFor();
   assert.equal(
     await page.getByText("Äldre avslutad order", { exact: true }).count(),
@@ -83,9 +75,9 @@ const server = require("node:child_process").spawn(
   );
   await page.goBack();
   await page
-    .getByRole("heading", { name: "Arbetsorder", exact: true })
+    .getByRole("heading", { name: "Översikt", exact: true })
     .waitFor();
-  await page.getByRole("button", { name: "Öppna AO-1042" }).click();
+  await page.getByRole("button", { name: "Byta innerdörr", exact: true }).click();
   await page
     .getByRole("heading", { name: "AO-1042 · Byta innerdörr" })
     .waitFor();
@@ -121,10 +113,10 @@ const server = require("node:child_process").spawn(
     .waitFor();
   await page.getByRole("button", { name: "Återställ", exact: true }).click();
   await page.getByRole("button", { name: "Brief – till startsidan" }).click();
-  await page.getByRole("button", { name: "Öppna AO-1042" }).waitFor();
+  await page.getByRole("button", { name: "Byta innerdörr", exact: true }).waitFor();
   await page
     .getByRole("navigation")
-    .getByRole("button", { name: "Företag & projekt" })
+    .getByRole("button", { name: "Företag", exact: true })
     .click();
   await page.getByRole("heading", { name: "Företagsbank" }).waitFor();
   await page
@@ -142,10 +134,8 @@ const server = require("node:child_process").spawn(
     ),
     fullPage: true,
   });
-  await page
-    .getByRole("navigation")
-    .getByRole("button", { name: "Personal", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Öppna kontomeny" }).click();
+  await page.getByRole("button", { name: "Personal", exact: false }).click();
   await page
     .locator(".person-row")
     .filter({ hasText: "Erik Svensson" })
@@ -162,20 +152,20 @@ const server = require("node:child_process").spawn(
   await page.getByText("Snickare och montör · Brief Bygg").waitFor();
   await page.getByLabel("Demoprofil", { exact: true }).selectOption("erik");
   await page
-    .getByRole("heading", { name: "Arbetsorder", exact: true })
+    .getByRole("heading", { name: "Översikt", exact: true })
     .waitFor();
   assert.equal(
-    await page.getByRole("button", { name: "Öppna AO-1042" }).count(),
+    await page.getByRole("button", { name: "Byta innerdörr", exact: true }).count(),
     0,
   );
   assert.equal(
-    await page.getByRole("button", { name: "Öppna AO-1043" }).count(),
+    await page.getByRole("button", { name: "Laga kökslucka", exact: true }).count(),
     1,
   );
   assert.equal(
     await page
       .getByRole("navigation")
-      .getByRole("button", { name: "Företag & projekt" })
+      .getByRole("button", { name: "Företag", exact: true })
       .count(),
     0,
   );
@@ -218,7 +208,7 @@ const server = require("node:child_process").spawn(
   });
   await page
     .getByRole("navigation")
-    .getByRole("button", { name: "Företag & projekt" })
+    .getByRole("button", { name: "Företag", exact: true })
     .click();
   await page.getByRole("button", { name: "+ Lägg till företag" }).click();
   await page
@@ -227,8 +217,8 @@ const server = require("node:child_process").spawn(
     .fill("Nytt bolag");
   await page
     .getByRole("dialog")
-    .getByLabel("Namn", { exact: true })
-    .fill("Kontakt");
+    .getByLabel("För- och efternamn", { exact: true })
+    .fill("Kontakt Person");
   await page
     .getByRole("dialog")
     .getByLabel("Telefon", { exact: true })
@@ -259,14 +249,14 @@ const server = require("node:child_process").spawn(
   privatePage.on("pageerror", (error) => privateErrors.push(error.message));
   await privatePage.goto("http://127.0.0.1:3005");
   await privatePage
-    .getByRole("heading", { name: "Välkommen tillbaka" })
+    .getByText("Logga in till din arbetsyta.", { exact: true })
     .waitFor();
   await privatePage.getByLabel("Tema", { exact: true }).selectOption("dark");
   await privatePage
     .getByRole("button", { name: "Öppna demonstration" })
     .click();
   await privatePage
-    .getByRole("heading", { name: "Arbetsorder", exact: true })
+    .getByRole("heading", { name: "Översikt", exact: true })
     .waitFor();
   assert.equal(
     await privatePage.evaluate(

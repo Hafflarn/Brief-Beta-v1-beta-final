@@ -48,7 +48,7 @@ test("14-day home cutoff preserves search data, and role/participation rules", (
   assert.equal(canWrite({ ...order, assignee: "other" }, worker), false);
   assert.equal(
     visible({ ...order, assignee: "a" }, worker, [worker, admin]),
-    false,
+    true,
   );
   assert.equal(
     visible(order, { ...worker, external: true, id: "outside" }, [

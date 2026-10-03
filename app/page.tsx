@@ -25,7 +25,6 @@ import {
   id,
   joined,
   manages,
-  onHome,
   rank,
   roles,
   visible,
@@ -155,7 +154,7 @@ function Tips({ manager }: { manager: boolean }) {
         "Mina ordrar visar dina uppdrag.",
         "Loggan tar dig till start.",
         "Äldre ordrar finns under Sök.",
-        "Avslutade syns här i 14 dagar.",
+        "Dra tabellen i sidled för att se adressen.",
         "Slutkommentar är valfri.",
         "Välj ljust eller mörkt tema.",
         ...(manager
@@ -165,7 +164,7 @@ function Tips({ manager }: { manager: boolean }) {
     : [
         "Tryck på loggan för att komma tillbaka till din lista.",
         "Hitta äldre avslutade arbetsorder på söksidan.",
-        "Avslutade ordrar visas på startsidan i 14 dagar.",
+        "Sök arbetsorder direkt i kontomenyn.",
         "Mina ordrar visar uppdrag där du är tilldelad eller deltagare.",
         "Du kan avsluta en arbetsorder utan slutkommentar.",
         ...(manager
@@ -224,7 +223,13 @@ export default function Home() {
   const [dirty, setDirty] = useState(false);
   const [routeDirty, setRouteDirty] = useState(false);
   const { route, navigate } = useNavigation(dirty || routeDirty);
-  const [filter, setFilter] = useState("Alla");
+  const [filter, setFilter] = useState("Mina ordrar");
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [directorySearch, setDirectorySearch] = useState("");
+  const [directoryResults, setDirectoryResults] = useState<cloud.DirectoryPerson[]>([]);
+  const [directoryBusy, setDirectoryBusy] = useState(false);
+  const [directoryError, setDirectoryError] = useState("");
+  const [accountSearch, setAccountSearch] = useState("");
   const [query, setQuery] = useState("");
   const [searchStatus, setSearchStatus] = useState("");
   const [searchPerson, setSearchPerson] = useState("");
@@ -251,12 +256,30 @@ export default function Home() {
   const [invite, setInvite] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [bankSearch, setBankSearch] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    setDirectoryResults([]); setDirectoryError("");
+    const term = directorySearch.trim();
+    if (!s || term.length < 2 || route !== "/people") { setDirectoryBusy(false); return; }
+    setDirectoryBusy(true);
+    const timer = setTimeout(async () => {
+      try {
+        const results = isDemo
+          ? [...s.people, {id:"demo-electrician",name:"Emma Johansson",job:"Elektriker",employer:"Elfabriken"}, {id:"demo-contractor",name:"Johan Nilsson",job:"Snickare",employer:"Elvbygg"}].filter(p=>p.employer.toLocaleLowerCase("sv").includes(term.toLocaleLowerCase("sv")))
+          : await withTimeout(cloud.searchDirectory(s.workspace, term));
+        if (!cancelled) setDirectoryResults(results);
+      } catch (error) {
+        if (!cancelled) setDirectoryError(error instanceof Error ? error.message : "Sökningen misslyckades.");
+      } finally { if (!cancelled) setDirectoryBusy(false); }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [directorySearch, s?.workspace, isDemo, route]);
   const me = s?.people.find((p) => p.id === s.user);
   const manager = me ? manages(me) : false;
   useEffect(() => {
     try {
       const saved = JSON.parse(readPreference("brief-list-view", true) || "{}");
-      setFilter(saved.filter || "Alla");
+      setFilter(saved.filter === "Alla" ? "Alla" : "Mina ordrar");
       setQuery(saved.query || "");
       setSearchStatus(saved.searchStatus || "");
       setSearchPerson(saved.searchPerson || "");
@@ -488,9 +511,9 @@ export default function Home() {
   };
   const shown = orders
     .filter((o) =>
-      trash ? !!o.deletedAt : !o.deletedAt && (!home || onHome(o)),
+      trash ? !!o.deletedAt : !o.deletedAt,
     )
-    .filter(match)
+    .filter(o=>home || match(o))
     .filter((o) => {
       if (searching)
         return (
@@ -509,6 +532,7 @@ export default function Home() {
   const currentOrder = route.startsWith("/order/")
     ? orders.find((o) => o.id === decodeURIComponent(route.slice(7)))
     : undefined;
+  const orderLevelAllowed = currentOrder ? rank(me.role) <= rank(people.find(p=>p.id===currentOrder.assignee)?.role || "supervisor") : false;
   const currentPerson = route.startsWith("/person/")
     ? people.find((p) => p.id === decodeURIComponent(route.slice(8)))
     : undefined;
@@ -548,6 +572,12 @@ export default function Home() {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.currentTarget).entries());
     if (!editor) return;
+    if (editor.type === "member") {
+      data.name = String(data.firstName || "").trim() + " " + String(data.lastName || "").trim();
+      if (!String(data.firstName || "").trim() || !String(data.lastName || "").trim()) { setMessage("Ange både förnamn och efternamn."); return; }
+      if (String(data.name).length > 150) { setMessage("För- och efternamn får tillsammans vara högst 150 tecken."); return; }
+      delete data.firstName; delete data.lastName;
+    }
     const old = editor.value;
     let c: Command;
     if (editor.type === "order")
@@ -559,8 +589,10 @@ export default function Home() {
         id: old?.id,
         external: data.external === "on",
       };
-    else if (editor.type === "company")
+    else if (editor.type === "company") {
+      if (contacts.some(ct => !/^\S+(?:\s+\S+)+$/.test(ct.name.trim()))) { setMessage("Ange förnamn och efternamn på alla kontaktpersoner."); return; }
       c = { ...data, kind: "save_company", id: old?.id, contacts };
+    }
     else c = { ...data, kind: "save_project", id: old?.id, connections };
     if (await act(c)) {
       setEditor(null);
@@ -590,16 +622,12 @@ export default function Home() {
       <span>{ct.name}</span>
     );
   const nav = [
-    { path: "/orders", text: "Arbetsorder" },
-    { path: "/search", text: "Sök" },
-    ...(!me.external ? [{ path: "/people", text: "Personal" }] : []),
-    ...(manager
-      ? [
-          { path: "/companies", text: "Företag & projekt" },
-          { path: "/trash", text: "Papperskorg" },
-        ]
-      : []),
+    { path: "/orders", text: "Översikt" },
+    ...(manager ? [{ path: "/projects", text: "Projekt" }, { path: "/companies", text: "Företag" }] : []),
   ];
+  const directoryPeople = people.filter(p => directorySearch.trim()
+    ? p.employer.toLocaleLowerCase("sv").includes(directorySearch.trim().toLocaleLowerCase("sv"))
+    : p.employer.trim().toLocaleLowerCase("sv") === me.employer.trim().toLocaleLowerCase("sv"));
   return (
     <div className="app-shell">
       <div className="frosted-background" aria-hidden="true">
@@ -634,16 +662,18 @@ export default function Home() {
         </nav>
         <div className="header-user">
           <ThemePicker />
-          <button className="user-button" onClick={() => go("/profile")}>
-            <span className="avatar">
-              {me.name
-                .split(" ")
-                .map((n) => n[0])
-                .slice(0, 2)
-                .join("")}
-            </span>
-            <span>{me.name.split(" ")[0]}</span>
-          </button>
+          {manager && <button className="trash-icon" aria-label="Papperskorg" title="Papperskorg" onClick={() => go("/trash")}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg></button>}
+          <div className="account-menu">
+            <button className="user-button" aria-label="Öppna kontomeny" aria-expanded={accountOpen} onClick={() => setAccountOpen(!accountOpen)}>
+              <span className="avatar">{me.name.split(" ").map(n=>n[0]).slice(0,2).join("")}</span><span className="menu-chevron">⌄</span>
+            </button>
+            {accountOpen && <><button className="menu-backdrop" aria-label="Stäng kontomeny" onClick={()=>setAccountOpen(false)}/><div className="account-dropdown" onKeyDown={e=>{if(e.key==="Escape")setAccountOpen(false)}}>
+              <strong>{me.name}</strong><small className="muted">{me.employer}</small>
+              <button onClick={()=>{setAccountOpen(false);go("/profile")}}>Min profil <span>›</span></button>
+              <form onSubmit={e=>{e.preventDefault();setQuery(accountSearch);setAccountOpen(false);go("/search")}}><label htmlFor="account-search">Sök arbetsorder</label><div className="dropdown-search"><input id="account-search" type="search" placeholder="Projekt, arbete eller adress" value={accountSearch} onChange={e=>setAccountSearch(e.target.value)}/><button aria-label="Sök" type="submit">→</button></div></form>
+              {!me.external && <button onClick={()=>{setDirectorySearch("");setAccountOpen(false);go("/people")}}>Personal <span>›</span></button>}
+            </div></>}
+          </div>
         </div>
       </header>
       {isDemo && (
@@ -689,7 +719,7 @@ export default function Home() {
                     ? "Sök arbetsorder"
                     : trash
                       ? "Papperskorg"
-                      : "Arbetsorder"}
+                      : "Översikt"}
                 </h1>
                 {searching && (
                   <p className="muted">
@@ -738,19 +768,12 @@ export default function Home() {
             ) : (
               <>
                 {home && (
-                  <div className="filters">
-                    {filters.map((f) => (
-                      <button
-                        key={f}
-                        className={filter === f ? "selected" : ""}
-                        onClick={() => setFilter(f)}
-                      >
-                        {f}
-                      </button>
-                    ))}
+                  <div className="order-scope" role="group" aria-label="Visa arbetsorder">
+                    <button aria-pressed={filter === "Mina ordrar"} className={filter === "Mina ordrar" ? "selected" : ""} onClick={()=>setFilter("Mina ordrar")}>Mina arbetsorder</button>
+                    <button aria-pressed={filter === "Alla"} className={filter === "Alla" ? "selected" : ""} onClick={()=>setFilter("Alla")}>Företagets arbetsorder</button>
                   </div>
                 )}
-                <div className="list-search">
+                {!home && <div className="list-search">
                   <label className="search-input">
                     <span className="sr-only">Sök arbetsorder</span>
                     <input
@@ -778,7 +801,7 @@ export default function Home() {
                         onChange={(e) => setSearchPerson(e.target.value)}
                       >
                         <option value="">Alla utförare</option>
-                        {people.map((p) => (
+{people.map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.name}
                           </option>
@@ -786,18 +809,7 @@ export default function Home() {
                       </select>
                     </>
                   )}
-                </div>
-                {home &&
-                  manager &&
-                  orders.some((o) => !o.deletedAt && !o.assignee) && (
-                    <button
-                      className="assignment-notice"
-                      onClick={() => setFilter("Behöver tilldelas")}
-                    >
-                      {orders.filter((o) => !o.deletedAt && !o.assignee).length}{" "}
-                      ordrar behöver tilldelas <span>Visa ›</span>
-                    </button>
-                  )}
+                </div>}
                 {searching && <p className="muted">{shown.length} träffar</p>}
                 {trash && selected.length > 0 && me.role === "admin" && (
                   <button
@@ -824,6 +836,15 @@ export default function Home() {
                     Radera markerade ({selected.length})
                   </button>
                 )}
+                {home ? <section className="panel compact-orders"><div className="table-wrap"><table>
+                  <thead><tr><th className="overview-status">Status</th><th className="overview-number"><span className="desktop-only">Projektnummer</span><span className="mobile-only">Ordernr</span></th><th className="overview-work">Arbete</th>{filter === "Alla" && <th className="overview-assignee desktop-only">Utförare</th>}<th className="overview-address desktop-only">Adress</th></tr></thead>
+                  <tbody>{shown.map(o=>{const address=o.address || nameOfProject(o)?.address || "";return <tr key={o.id} tabIndex={0} aria-label={"Öppna " + o.title} onClick={()=>go("/order/"+o.id)} onKeyDown={e=>{if(e.target===e.currentTarget && e.key==="Enter")go("/order/"+o.id)}}>
+                    <td className="overview-status"><span title={o.status} className={"order-status status-"+(o.status==="Avslutad"?"green":o.status==="Påbörjad"?"yellow":"red")}><i aria-hidden="true"/><span className="desktop-only">{o.status}</span><span className="mobile-only">{o.status === "Avslutad" ? "Klar" : o.status === "Påbörjad" ? "Pågår" : "Ej startad"}</span></span></td>
+                    <td className="overview-number"><span className="desktop-only">{nameOfProject(o)?.number || "—"}</span><span className="mobile-only">{o.number}</span></td>
+                    <td className="overview-work"><button className="compact-title" onClick={e=>{e.stopPropagation();go("/order/"+o.id)}}>{o.title}</button>{filter === "Alla" && <small className="mobile-only mobile-assignee">Utförare: {o.assignee ? memberName(o.assignee) : "Ej tilldelad"}</small>}</td>
+                    {filter === "Alla" && <td className="overview-assignee desktop-only">{o.assignee ? memberName(o.assignee) : "Ej tilldelad"}</td>}
+                    <td className="overview-address desktop-only">{address ? <a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(address)} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()}>{address} ↗</a> : "—"}</td>
+                  </tr>})}</tbody></table></div>{!shown.length && <p className="empty-orders">Inga arbetsorder att visa.</p>}</section> : <>
                 <section
                   className={"panel order-list " + (trash ? "trash-list" : "")}
                 >
@@ -925,7 +946,7 @@ export default function Home() {
                   {!shown.length && (
                     <p className="empty">Inga arbetsorder att visa.</p>
                   )}
-                </section>
+                </section></>}
               </>
             )}
           </>
@@ -944,7 +965,7 @@ export default function Home() {
                   </h1>
                   <Badge order={currentOrder} />
                 </div>
-                {manager && !currentOrder.deletedAt && (
+                {manager && orderLevelAllowed && !currentOrder.deletedAt && (
                   <div className="actions">
                     <button
                       disabled={busy || currentOrder.status === "Avslutad"}
@@ -1027,7 +1048,7 @@ export default function Home() {
                   )}
                 </div>
                 <div className="detail-actions">
-                  {manager &&
+                  {manager && orderLevelAllowed &&
                     currentOrder.assignee !== me.id &&
                     currentOrder.status !== "Avslutad" &&
                     !currentOrder.deletedAt && (
@@ -1044,7 +1065,7 @@ export default function Home() {
                         Tilldela mig
                       </button>
                     )}
-                  {!joined(currentOrder, me) && !currentOrder.deletedAt && (
+                  {orderLevelAllowed && !joined(currentOrder, me) && !currentOrder.deletedAt && (
                     <button
                       className="primary"
                       disabled={busy}
@@ -1073,7 +1094,7 @@ export default function Home() {
                     </span>
                   ))}
                 </div>
-                {canWrite(currentOrder, me) &&
+                {(orderLevelAllowed && canWrite(currentOrder, me)) &&
                   currentOrder.status !== "Avslutad" && (
                     <div className="inline-form">
                       <select
@@ -1152,7 +1173,7 @@ export default function Home() {
                         </button>
                       )}
                     </>
-                  ) : canWrite(currentOrder, me) ? (
+                  ) : (orderLevelAllowed && canWrite(currentOrder, me)) ? (
                     <>
                       <h2>Arbeta med ordern</h2>
                       {currentOrder.status === "Ej påbörjad" && (
@@ -1208,7 +1229,7 @@ export default function Home() {
               )}
               <section className="panel content-panel">
                 <h2>Kommentarer och bilagor</h2>
-                {canWrite(currentOrder, me) &&
+                {(orderLevelAllowed && canWrite(currentOrder, me)) &&
                   currentOrder.status !== "Avslutad" && (
                     <form onSubmit={noteSubmit} onChange={() => setDirty(true)}>
                       <label>
@@ -1295,7 +1316,15 @@ export default function Home() {
               )}
             </div>
             <section className="panel content-panel">
-              {people.map((p) => (
+              <div className="directory-search"><label htmlFor="directory-search">Sök företag</label><input id="directory-search" type="search" placeholder="Sök ett annat företag för att visa dess personal" value={directorySearch} onChange={e=>setDirectorySearch(e.target.value)}/><small className="muted">Sök med minst två tecken. Katalogen visar namn, yrkesroll och företag.</small></div>
+              <h2>{directorySearch.trim() ? "Personal hos sökta företag" : "Mina kollegor · " + me.employer}</h2>
+              {directorySearch.trim() ? <div aria-live="polite">
+                {directoryBusy && <p>Söker företag…</p>}
+                {directoryError && <p role="alert">{directoryError}</p>}
+                {!directoryBusy && !directoryError && !directoryResults.length && <p>{directorySearch.trim().length < 2 ? "Skriv minst två tecken." : "Ingen registrerad personal hittades hos det företaget."}</p>}
+                {directoryResults.map(p=><div className="person-row" key={p.id}><span className="person-name"><span className="avatar">{p.name.split(" ").map(n=>n[0]).slice(0,2).join("")}</span><span>{p.name}<small>{p.job} · {p.employer}</small></span></span></div>)}
+              </div> : <>
+              {directoryPeople.map((p) => (
                 <div className="person-row" key={p.id}>
                   <button
                     className="person-name"
@@ -1326,7 +1355,7 @@ export default function Home() {
                     <button onClick={() => edit("member", p)}>Redigera</button>
                   )}
                 </div>
-              ))}
+              ))}</>}
             </section>
           </>
         )}
@@ -1393,17 +1422,17 @@ export default function Home() {
             </form>
           </section>
         )}
-        {route === "/companies" && manager && (
+        {(route === "/companies" || route === "/projects") && manager && (
           <>
             <div className="page-heading">
               <div>
-                <h1>Företag & projekt</h1>
+                <h1>{route === "/projects" ? "Projekt" : "Företag"}</h1>
                 <p className="muted">
-                  Företagsbank, projekt och kontaktpersoner.
+                  {route === "/projects" ? "Företagets projekt och anknytningar." : "Företagsbank och kontaktpersoner."}
                 </p>
               </div>
-              <button className="primary" onClick={() => edit("company")}>
-                + Lägg till företag
+              <button className="primary" onClick={() => edit(route === "/projects" ? "project" : "company")}>
+                {route === "/projects" ? "+ Lägg till projekt" : "+ Lägg till företag"}
               </button>
             </div>
             <div className="bank-grid">
@@ -1460,7 +1489,7 @@ export default function Home() {
                     );
                   return (
                     <>
-                      <section className="panel content-panel">
+                      {route === "/companies" && <section className="panel content-panel">
                         <div className="section-heading">
                           <h2>{company.name}</h2>
                           <div className="actions">
@@ -1502,8 +1531,8 @@ export default function Home() {
                             </div>
                           ))}
                         </div>
-                      </section>
-                      <section className="panel content-panel">
+                      </section>}
+                      {route === "/projects" && <section className="panel content-panel">
                         <div className="section-heading">
                           <h2>Projekt</h2>
                           <button
@@ -1596,7 +1625,7 @@ export default function Home() {
                               </div>
                             </article>
                           ))}
-                      </section>
+                      </section>}
                     </>
                   );
                 })()}
@@ -1783,12 +1812,13 @@ export default function Home() {
                       const p = editor.value as Member | undefined;
                       return [
                         {
-                          key: "name",
-                          label: "Namn",
-                          value: p?.name,
+                          key: "firstName",
+                          label: "Förnamn",
+                          value: p?.name.split(" ")[0],
                           required: true,
                           max: 150,
                         },
+                        { key: "lastName", label: "Efternamn", value: p?.name.split(" ").slice(1).join(" "), required: true, max: 150 },
                         {
                           key: "job",
                           label: "Yrkesroll",
@@ -1941,7 +1971,7 @@ export default function Home() {
                       {(["name", "phone", "email"] as const).map((key) => (
                         <label key={key}>
                           {key === "name"
-                            ? "Namn"
+                            ? "För- och efternamn"
                             : key === "phone"
                               ? "Telefon"
                               : "E-post"}

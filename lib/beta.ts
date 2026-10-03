@@ -129,6 +129,8 @@ export const filters = [
   "Avslutade",
 ];
 export function visible(o: Order, m: Member, people: Member[]) {
+  if (!m.active || m.deleted) return false;
+  if (!m.external && !o.deletedAt) return true;
   const target = people.find((p) => p.id === o.assignee);
   if (rank(m.role) > (target ? rank(target.role) : 2)) return false;
   if (o.deletedAt) return manages(m);

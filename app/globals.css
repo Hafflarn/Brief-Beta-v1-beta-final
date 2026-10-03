@@ -1146,3 +1146,60 @@ footer select {
     grid-row: 1;
   }
 }
+
+/* Brief interface review: compact overview and account menu. */
+.order-scope {display:flex;width:min(460px,100%);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:0 0 22px;background:var(--surface)}
+.order-scope button {flex:1;border:0;border-radius:0;padding:14px 12px;background:transparent;font-weight:600}
+.order-scope button+button {border-left:1px solid var(--border)}
+.order-scope .selected {background:var(--button);color:var(--button-text)}
+.compact-orders .table-wrap {overflow-x:auto}
+.compact-orders table {width:100%;border-collapse:collapse;min-width:760px;table-layout:fixed}
+.compact-orders th,.compact-orders td {text-align:left;padding:12px 16px;border-bottom:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.compact-orders th {font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);background:var(--surface)}
+.compact-orders th:nth-child(1) {width:155px}.compact-orders th:nth-child(2) {width:145px}.compact-orders th:nth-child(3){width:28%}
+.compact-orders tr {cursor:pointer}.compact-orders tbody tr:hover {background:rgba(100,140,160,.08)}
+.compact-title {padding:0;border:0;background:none;border-radius:0;font-size:14px;text-align:left;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.order-status {display:inline-flex;align-items:center;gap:8px;font-size:13px}.order-status i {width:9px;height:9px;border-radius:50%;flex:none}
+.status-green i{background:#21b576}.status-yellow i{background:#edb62a}.status-red i{background:#ec5961}
+.empty-orders {padding:24px;color:var(--muted)}
+.header-user {gap:12px}.trash-icon {padding:8px;display:grid;place-items:center;border:0;background:transparent;color:var(--muted)}
+.account-menu {position:relative}.user-button {padding:0!important;gap:5px!important}.menu-chevron {color:var(--muted)}
+.menu-backdrop {position:fixed;inset:0;border:0;background:transparent;z-index:40;cursor:default}
+.account-dropdown {position:absolute;right:0;top:calc(100% + 14px);width:320px;max-width:calc(100vw - 32px);padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 16px 48px #0003;z-index:41;display:grid;gap:8px}
+.account-dropdown>small {margin-bottom:8px}.account-dropdown>button {display:flex;justify-content:space-between;background:transparent;border:0;border-radius:7px;text-align:left;padding:12px 0}
+.account-dropdown form {border-block:1px solid var(--border);padding:15px 0}.account-dropdown label {font-size:12px;font-weight:600}.dropdown-search {display:flex;gap:6px;margin-top:8px}.dropdown-search input {min-width:0;flex:1}.dropdown-search button {padding:8px 12px}
+.directory-search {display:grid;gap:8px;padding-bottom:24px;margin-bottom:24px;border-bottom:1px solid var(--border)}
+.login-intro {text-align:center;font-size:18px!important;margin:0 0 24px!important}.login-version {display:block;text-align:center;margin-top:40px;color:var(--muted);font-size:12px}
+.login-page {padding-bottom:22px;min-height:100svh}.login-brand .logo-large {width:min(520px,90vw)}
+@media(max-width:700px){.compact-orders table {display:table}.compact-orders thead {display:table-header-group}.compact-orders tbody{display:table-row-group}.compact-orders tr{display:table-row}.compact-orders td,.compact-orders th{display:table-cell;padding:11px 13px}.order-scope button{font-size:12px;padding:13px 8px}.account-dropdown{right:0}.header-user{gap:7px}.login-brand .logo-large{width:min(440px,95vw)}.compact-orders{border-radius:10px}.compact-orders th:nth-child(1){width:140px}.compact-orders th:nth-child(2){width:135px}}
+.logo {aspect-ratio:1395/510;overflow:visible;border-radius:0;color:var(--ink)}
+.brief-vector {display:block;width:100%;height:100%;overflow:visible}
+.login-brand .logo-large {width:min(510px,89vw)}
+.login-version {margin-top:auto;padding-top:28px}.login-page {gap:24px;padding-top:90px}
+@media(max-width:700px){.login-brand .logo-large{width:min(390px,89vw)}.login-page{padding-top:85px}.login-card{padding:26px}}
+
+.menu-backdrop,.menu-backdrop:hover {background:rgba(0,0,0,.18)!important;border-radius:0;padding:0}
+@media(max-width:700px){.user-button>.menu-chevron {display:inline!important}.header .logo {width:132px}.theme-picker select{max-width:110px}}
+
+/* Mobile overview keeps all essential fields inside the viewport. */
+.mobile-only {display:none!important}
+.compact-orders th.overview-status {width:145px}
+.compact-orders th.overview-number {width:145px}
+.compact-orders th.overview-work {width:25%}
+.compact-orders th.overview-assignee {width:190px}
+@media(max-width:700px){
+  .compact-orders .desktop-only {display:none!important}
+  .compact-orders .mobile-only {display:inline!important}
+  .compact-orders table {min-width:0;width:100%;table-layout:fixed}
+  .compact-orders .table-wrap {overflow-x:visible}
+  .compact-orders th.overview-status {width:76px}
+  .compact-orders th.overview-number {width:78px}
+  .compact-orders th.overview-work {width:auto}
+  .compact-orders th,.compact-orders td {padding:12px 8px;white-space:normal;overflow:visible;text-overflow:clip;vertical-align:top}
+  .compact-orders th {font-size:9px;letter-spacing:.05em}
+  .compact-orders .overview-number {font-size:11px;overflow-wrap:anywhere}
+  .compact-orders .order-status {gap:5px;font-size:10px;white-space:nowrap}
+  .compact-orders .order-status i {width:7px;height:7px}
+  .compact-orders .compact-title {font-size:12px;white-space:normal;overflow:visible;overflow-wrap:anywhere;line-height:1.45}
+  .compact-orders .mobile-assignee {display:block!important;font-size:10px;line-height:1.45;color:var(--muted);margin-top:5px;overflow-wrap:anywhere}
+}
