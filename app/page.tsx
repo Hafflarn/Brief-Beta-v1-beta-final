@@ -156,7 +156,7 @@ function Tips({ manager }: { manager: boolean }) {
   }, []);
   const tips = short
     ? [
-        "Mina ordrar visar dina uppdrag.",
+        "Min lista visar dina uppdrag.",
         "Loggan tar dig till start.",
         "Äldre ordrar finns under Sök.",
         "Dra tabellen i sidled för att se adressen.",
@@ -170,7 +170,7 @@ function Tips({ manager }: { manager: boolean }) {
         "Tryck på loggan för att komma tillbaka till din lista.",
         "Hitta äldre avslutade arbetsorder på söksidan.",
         "Sök arbetsorder direkt i kontomenyn.",
-        "Mina ordrar visar uppdrag där du är tilldelad eller deltagare.",
+        "Min lista visar uppdrag där du är tilldelad eller deltagare.",
         "Du kan avsluta en arbetsorder utan slutkommentar.",
         ...(manager
           ? [
@@ -948,14 +948,14 @@ export default function Home() {
                       className={filter === "Mina ordrar" ? "selected" : ""}
                       onClick={() => setFilter("Mina ordrar")}
                     >
-                      Mina arbetsorder
+                      Min lista
                     </button>
                     <button
                       aria-pressed={filter === "Alla"}
                       className={filter === "Alla" ? "selected" : ""}
                       onClick={() => setFilter("Alla")}
                     >
-                      Företagets arbetsorder
+                      Företagslista
                     </button>
                   </div>
                 )}
@@ -2373,8 +2373,8 @@ export default function Home() {
           </>
         )}
         <Tips manager={manager} />
-        <footer>
-          <span>Brief v1 Beta</span>
+        <footer className="brief-footer">
+          <div className="footer-brand"><Logo /><p>© 2026 Brief. All rights reserved. · Established 2026 · Sweden</p></div>
           <div className="actions">
             {workspaces.length > 1 && (
               <select

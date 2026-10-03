@@ -265,7 +265,7 @@ export default function Login({
           </button>
         )}
       </section>
-      <small className="login-version">Brief v1 Beta</small>
+      <footer className="brief-footer login-footer"><div className="footer-brand"><Logo /><p>© 2026 Brief. All rights reserved. · Established 2026 · Sweden</p></div></footer>
     </main>
   );
 }

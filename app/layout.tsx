@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "Brief v1 Beta",
+  title: "Brief - Keep it brief, get it done.",
   description: "Keep it brief, get it done. Arbetsorder, företag och projekt.",
   other: {
     "brief-source": "Hafflarn/Brief-Beta-v1-beta-final",
