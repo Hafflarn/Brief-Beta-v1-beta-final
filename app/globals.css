@@ -1233,6 +1233,6 @@ summary {cursor:pointer;font-weight:650;padding:8px 0;}
 .footer-brand .brief-vector circle,
 .footer-brand .brief-vector rect { fill: currentColor; }
 .footer-brand .brief-vector [stroke] { stroke: currentColor; }
-.footer-brand p { margin: 0; line-height: 1.7; color: var(--muted); text-wrap: balance; }
+.footer-brand p { margin: 0; line-height: 1.7; color: color-mix(in srgb, var(--page) 72%, white); text-wrap: balance; }
 .brief-footer .actions { justify-content: center; flex-wrap: wrap; }
 .login-footer { margin-top: auto; width: 100%; border-top: 0; padding-top: 28px; }
