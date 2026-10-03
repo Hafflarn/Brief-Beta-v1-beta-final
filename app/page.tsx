@@ -1,6 +1,7 @@
 "use client";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import Login from "./login";
+import { printOrder } from "../lib/order-print";
 import Logo from "./components/logo";
 import ThemePicker from "./components/theme";
 import { useNavigation } from "./components/navigation";
@@ -10,6 +11,10 @@ import { withTimeout } from "../lib/network";
 import * as cloud from "../lib/beta-cloud";
 import { demo, demoApply } from "../lib/demo";
 import {
+  controlKinds,
+  controlLabels,
+  remainingSelfChecks,
+  hasControls,
   Attachment,
   Command,
   Company,
@@ -226,7 +231,9 @@ export default function Home() {
   const [filter, setFilter] = useState("Mina ordrar");
   const [accountOpen, setAccountOpen] = useState(false);
   const [directorySearch, setDirectorySearch] = useState("");
-  const [directoryResults, setDirectoryResults] = useState<cloud.DirectoryPerson[]>([]);
+  const [directoryResults, setDirectoryResults] = useState<
+    cloud.DirectoryPerson[]
+  >([]);
   const [directoryBusy, setDirectoryBusy] = useState(false);
   const [directoryError, setDirectoryError] = useState("");
   const [accountSearch, setAccountSearch] = useState("");
@@ -243,8 +250,12 @@ export default function Home() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [note, setNote] = useState("");
+  const [notePhase, setNotePhase] = useState("Under");
+  const [noteHours, setNoteHours] = useState("");
+  const [filePhase, setFilePhase] = useState("Alla");
   const [files, setFiles] = useState<File[]>([]);
   const [pending, setPending] = useState<Attachment[]>([]);
+  const [orderTab, setOrderTab] = useState("Översikt");
   const [closing, setClosing] = useState("");
   const [profile, setProfile] = useState<{
     name: string;
@@ -258,22 +269,55 @@ export default function Home() {
   const [bankSearch, setBankSearch] = useState("");
   useEffect(() => {
     let cancelled = false;
-    setDirectoryResults([]); setDirectoryError("");
+    setDirectoryResults([]);
+    setDirectoryError("");
     const term = directorySearch.trim();
-    if (!s || term.length < 2 || route !== "/people") { setDirectoryBusy(false); return; }
+    if (!s || term.length < 2 || route !== "/people") {
+      setDirectoryBusy(false);
+      return;
+    }
     setDirectoryBusy(true);
     const timer = setTimeout(async () => {
       try {
         const results = isDemo
-          ? [...s.people, {id:"demo-electrician",name:"Emma Johansson",job:"Elektriker",employer:"Elfabriken"}, {id:"demo-contractor",name:"Johan Nilsson",job:"Snickare",employer:"Elvbygg"}].filter(p=>p.employer.toLocaleLowerCase("sv").includes(term.toLocaleLowerCase("sv")))
+          ? [
+              ...s.people,
+              {
+                id: "demo-electrician",
+                name: "Emma Johansson",
+                job: "Elektriker",
+                employer: "Elfabriken",
+              },
+              {
+                id: "demo-contractor",
+                name: "Johan Nilsson",
+                job: "Snickare",
+                employer: "Elvbygg",
+              },
+            ].filter((p) =>
+              p.employer
+                .toLocaleLowerCase("sv")
+                .includes(term.toLocaleLowerCase("sv")),
+            )
           : await withTimeout(cloud.searchDirectory(s.workspace, term));
         if (!cancelled) setDirectoryResults(results);
       } catch (error) {
-        if (!cancelled) setDirectoryError(error instanceof Error ? error.message : "Sökningen misslyckades.");
-      } finally { if (!cancelled) setDirectoryBusy(false); }
+        if (!cancelled)
+          setDirectoryError(
+            error instanceof Error ? error.message : "Sökningen misslyckades.",
+          );
+      } finally {
+        if (!cancelled) setDirectoryBusy(false);
+      }
     }, 300);
-    return () => { cancelled = true; clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [directorySearch, s?.workspace, isDemo, route]);
+  useEffect(() => {
+    setOrderTab("Översikt");
+  }, [route]);
   const me = s?.people.find((p) => p.id === s.user);
   const manager = me ? manages(me) : false;
   useEffect(() => {
@@ -510,10 +554,8 @@ export default function Home() {
       .includes(query.toLocaleLowerCase("sv"));
   };
   const shown = orders
-    .filter((o) =>
-      trash ? !!o.deletedAt : !o.deletedAt,
-    )
-    .filter(o=>home || match(o))
+    .filter((o) => (trash ? !!o.deletedAt : !o.deletedAt))
+    .filter((o) => home || match(o))
     .filter((o) => {
       if (searching)
         return (
@@ -532,7 +574,13 @@ export default function Home() {
   const currentOrder = route.startsWith("/order/")
     ? orders.find((o) => o.id === decodeURIComponent(route.slice(7)))
     : undefined;
-  const orderLevelAllowed = currentOrder ? rank(me.role) <= rank(people.find(p=>p.id===currentOrder.assignee)?.role || "supervisor") : false;
+  const orderLevelAllowed = currentOrder
+    ? rank(me.role) <=
+      rank(
+        people.find((p) => p.id === currentOrder.assignee)?.role ||
+          "supervisor",
+      )
+    : false;
   const currentPerson = route.startsWith("/person/")
     ? people.find((p) => p.id === decodeURIComponent(route.slice(8)))
     : undefined;
@@ -554,10 +602,13 @@ export default function Home() {
           kind: "add_note",
           id: currentOrder.id,
           text: note,
+          phase: notePhase,
+          hours: noteHours ? Number(noteHours) : undefined,
           files: uploaded,
         })
       ) {
         setNote("");
+        setNoteHours("");
         setFiles([]);
         setPending([]);
       }
@@ -573,16 +624,40 @@ export default function Home() {
     const data = Object.fromEntries(new FormData(e.currentTarget).entries());
     if (!editor) return;
     if (editor.type === "member") {
-      data.name = String(data.firstName || "").trim() + " " + String(data.lastName || "").trim();
-      if (!String(data.firstName || "").trim() || !String(data.lastName || "").trim()) { setMessage("Ange både förnamn och efternamn."); return; }
-      if (String(data.name).length > 150) { setMessage("För- och efternamn får tillsammans vara högst 150 tecken."); return; }
-      delete data.firstName; delete data.lastName;
+      data.name =
+        String(data.firstName || "").trim() +
+        " " +
+        String(data.lastName || "").trim();
+      if (
+        !String(data.firstName || "").trim() ||
+        !String(data.lastName || "").trim()
+      ) {
+        setMessage("Ange både förnamn och efternamn.");
+        return;
+      }
+      if (String(data.name).length > 150) {
+        setMessage("För- och efternamn får tillsammans vara högst 150 tecken.");
+        return;
+      }
+      delete data.firstName;
+      delete data.lastName;
     }
     const old = editor.value;
     let c: Command;
-    if (editor.type === "order")
-      c = { ...data, kind: old ? "edit_order" : "create_order", id: old?.id };
-    else if (editor.type === "member")
+    if (editor.type === "order") {
+      const controls = Object.fromEntries(
+        controlKinds.map((k) => [
+          k,
+          { enabled: data["control_" + k] === "on" },
+        ]),
+      );
+      c = {
+        ...data,
+        controls,
+        kind: old ? "edit_order" : "create_order",
+        id: old?.id,
+      };
+    } else if (editor.type === "member")
       c = {
         ...data,
         kind: old ? "edit_member" : "invite_member",
@@ -590,10 +665,12 @@ export default function Home() {
         external: data.external === "on",
       };
     else if (editor.type === "company") {
-      if (contacts.some(ct => !/^\S+(?:\s+\S+)+$/.test(ct.name.trim()))) { setMessage("Ange förnamn och efternamn på alla kontaktpersoner."); return; }
+      if (contacts.some((ct) => !/^\S+(?:\s+\S+)+$/.test(ct.name.trim()))) {
+        setMessage("Ange förnamn och efternamn på alla kontaktpersoner.");
+        return;
+      }
       c = { ...data, kind: "save_company", id: old?.id, contacts };
-    }
-    else c = { ...data, kind: "save_project", id: old?.id, connections };
+    } else c = { ...data, kind: "save_project", id: old?.id, connections };
     if (await act(c)) {
       setEditor(null);
       setDirty(false);
@@ -623,11 +700,21 @@ export default function Home() {
     );
   const nav = [
     { path: "/orders", text: "Översikt" },
-    ...(manager ? [{ path: "/projects", text: "Projekt" }, { path: "/companies", text: "Företag" }] : []),
+    ...(manager
+      ? [
+          { path: "/projects", text: "Projekt" },
+          { path: "/companies", text: "Företag" },
+        ]
+      : []),
   ];
-  const directoryPeople = people.filter(p => directorySearch.trim()
-    ? p.employer.toLocaleLowerCase("sv").includes(directorySearch.trim().toLocaleLowerCase("sv"))
-    : p.employer.trim().toLocaleLowerCase("sv") === me.employer.trim().toLocaleLowerCase("sv"));
+  const directoryPeople = people.filter((p) =>
+    directorySearch.trim()
+      ? p.employer
+          .toLocaleLowerCase("sv")
+          .includes(directorySearch.trim().toLocaleLowerCase("sv"))
+      : p.employer.trim().toLocaleLowerCase("sv") ===
+        me.employer.trim().toLocaleLowerCase("sv"),
+  );
   return (
     <div className="app-shell">
       <div className="frosted-background" aria-hidden="true">
@@ -662,17 +749,100 @@ export default function Home() {
         </nav>
         <div className="header-user">
           <ThemePicker />
-          {manager && <button className="trash-icon" aria-label="Papperskorg" title="Papperskorg" onClick={() => go("/trash")}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg></button>}
-          <div className="account-menu">
-            <button className="user-button" aria-label="Öppna kontomeny" aria-expanded={accountOpen} onClick={() => setAccountOpen(!accountOpen)}>
-              <span className="avatar">{me.name.split(" ").map(n=>n[0]).slice(0,2).join("")}</span><span className="menu-chevron">⌄</span>
+          {manager && (
+            <button
+              className="trash-icon"
+              aria-label="Papperskorg"
+              title="Papperskorg"
+              onClick={() => go("/trash")}
+            >
+              <svg
+                width="19"
+                height="19"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+              >
+                <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" />
+              </svg>
             </button>
-            {accountOpen && <><button className="menu-backdrop" aria-label="Stäng kontomeny" onClick={()=>setAccountOpen(false)}/><div className="account-dropdown" onKeyDown={e=>{if(e.key==="Escape")setAccountOpen(false)}}>
-              <strong>{me.name}</strong><small className="muted">{me.employer}</small>
-              <button onClick={()=>{setAccountOpen(false);go("/profile")}}>Min profil <span>›</span></button>
-              <form onSubmit={e=>{e.preventDefault();setQuery(accountSearch);setAccountOpen(false);go("/search")}}><label htmlFor="account-search">Sök arbetsorder</label><div className="dropdown-search"><input id="account-search" type="search" placeholder="Projekt, arbete eller adress" value={accountSearch} onChange={e=>setAccountSearch(e.target.value)}/><button aria-label="Sök" type="submit">→</button></div></form>
-              {!me.external && <button onClick={()=>{setDirectorySearch("");setAccountOpen(false);go("/people")}}>Personal <span>›</span></button>}
-            </div></>}
+          )}
+          <div className="account-menu">
+            <button
+              className="user-button"
+              aria-label="Öppna kontomeny"
+              aria-expanded={accountOpen}
+              onClick={() => setAccountOpen(!accountOpen)}
+            >
+              <span className="avatar">
+                {me.name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join("")}
+              </span>
+              <span className="menu-chevron">⌄</span>
+            </button>
+            {accountOpen && (
+              <>
+                <button
+                  className="menu-backdrop"
+                  aria-label="Stäng kontomeny"
+                  onClick={() => setAccountOpen(false)}
+                />
+                <div
+                  className="account-dropdown"
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setAccountOpen(false);
+                  }}
+                >
+                  <strong>{me.name}</strong>
+                  <small className="muted">{me.employer}</small>
+                  <button
+                    onClick={() => {
+                      setAccountOpen(false);
+                      go("/profile");
+                    }}
+                  >
+                    Min profil <span>›</span>
+                  </button>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setQuery(accountSearch);
+                      setAccountOpen(false);
+                      go("/search");
+                    }}
+                  >
+                    <label htmlFor="account-search">Sök arbetsorder</label>
+                    <div className="dropdown-search">
+                      <input
+                        id="account-search"
+                        type="search"
+                        placeholder="Projekt, arbete eller adress"
+                        value={accountSearch}
+                        onChange={(e) => setAccountSearch(e.target.value)}
+                      />
+                      <button aria-label="Sök" type="submit">
+                        →
+                      </button>
+                    </div>
+                  </form>
+                  {!me.external && (
+                    <button
+                      onClick={() => {
+                        setDirectorySearch("");
+                        setAccountOpen(false);
+                        go("/people");
+                      }}
+                    >
+                      Personal <span>›</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -768,48 +938,66 @@ export default function Home() {
             ) : (
               <>
                 {home && (
-                  <div className="order-scope" role="group" aria-label="Visa arbetsorder">
-                    <button aria-pressed={filter === "Mina ordrar"} className={filter === "Mina ordrar" ? "selected" : ""} onClick={()=>setFilter("Mina ordrar")}>Mina arbetsorder</button>
-                    <button aria-pressed={filter === "Alla"} className={filter === "Alla" ? "selected" : ""} onClick={()=>setFilter("Alla")}>Företagets arbetsorder</button>
+                  <div
+                    className="order-scope"
+                    role="group"
+                    aria-label="Visa arbetsorder"
+                  >
+                    <button
+                      aria-pressed={filter === "Mina ordrar"}
+                      className={filter === "Mina ordrar" ? "selected" : ""}
+                      onClick={() => setFilter("Mina ordrar")}
+                    >
+                      Mina arbetsorder
+                    </button>
+                    <button
+                      aria-pressed={filter === "Alla"}
+                      className={filter === "Alla" ? "selected" : ""}
+                      onClick={() => setFilter("Alla")}
+                    >
+                      Företagets arbetsorder
+                    </button>
                   </div>
                 )}
-                {!home && <div className="list-search">
-                  <label className="search-input">
-                    <span className="sr-only">Sök arbetsorder</span>
-                    <input
-                      type="search"
-                      placeholder="Sök ordernummer, adress eller beställare"
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                    />
-                  </label>
-                  {searching && (
-                    <>
-                      <select
-                        aria-label="Statusfilter"
-                        value={searchStatus}
-                        onChange={(e) => setSearchStatus(e.target.value)}
-                      >
-                        <option value="">Alla statusar</option>
-                        {["Ej påbörjad", "Påbörjad", "Avslutad"].map((v) => (
-                          <option key={v}>{v}</option>
-                        ))}
-                      </select>
-                      <select
-                        aria-label="Utförarfilter"
-                        value={searchPerson}
-                        onChange={(e) => setSearchPerson(e.target.value)}
-                      >
-                        <option value="">Alla utförare</option>
-{people.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    </>
-                  )}
-                </div>}
+                {!home && (
+                  <div className="list-search">
+                    <label className="search-input">
+                      <span className="sr-only">Sök arbetsorder</span>
+                      <input
+                        type="search"
+                        placeholder="Sök ordernummer, adress eller beställare"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                      />
+                    </label>
+                    {searching && (
+                      <>
+                        <select
+                          aria-label="Statusfilter"
+                          value={searchStatus}
+                          onChange={(e) => setSearchStatus(e.target.value)}
+                        >
+                          <option value="">Alla statusar</option>
+                          {["Ej påbörjad", "Påbörjad", "Avslutad"].map((v) => (
+                            <option key={v}>{v}</option>
+                          ))}
+                        </select>
+                        <select
+                          aria-label="Utförarfilter"
+                          value={searchPerson}
+                          onChange={(e) => setSearchPerson(e.target.value)}
+                        >
+                          <option value="">Alla utförare</option>
+                          {people.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    )}
+                  </div>
+                )}
                 {searching && <p className="muted">{shown.length} träffar</p>}
                 {trash && selected.length > 0 && me.role === "admin" && (
                   <button
@@ -836,117 +1024,246 @@ export default function Home() {
                     Radera markerade ({selected.length})
                   </button>
                 )}
-                {home ? <section className="panel compact-orders"><div className="table-wrap"><table>
-                  <thead><tr><th className="overview-status">Status</th><th className="overview-number"><span className="desktop-only">Projektnummer</span><span className="mobile-only">Ordernr</span></th><th className="overview-work">Arbete</th>{filter === "Alla" && <th className="overview-assignee desktop-only">Utförare</th>}<th className="overview-address desktop-only">Adress</th></tr></thead>
-                  <tbody>{shown.map(o=>{const address=o.address || nameOfProject(o)?.address || "";return <tr key={o.id} tabIndex={0} aria-label={"Öppna " + o.title} onClick={()=>go("/order/"+o.id)} onKeyDown={e=>{if(e.target===e.currentTarget && e.key==="Enter")go("/order/"+o.id)}}>
-                    <td className="overview-status"><span title={o.status} className={"order-status status-"+(o.status==="Avslutad"?"green":o.status==="Påbörjad"?"yellow":"red")}><i aria-hidden="true"/><span className="desktop-only">{o.status}</span><span className="mobile-only">{o.status === "Avslutad" ? "Klar" : o.status === "Påbörjad" ? "Pågår" : "Ej startad"}</span></span></td>
-                    <td className="overview-number"><span className="desktop-only">{nameOfProject(o)?.number || "—"}</span><span className="mobile-only">{o.number}</span></td>
-                    <td className="overview-work"><button className="compact-title" onClick={e=>{e.stopPropagation();go("/order/"+o.id)}}>{o.title}</button>{filter === "Alla" && <small className="mobile-only mobile-assignee">Utförare: {o.assignee ? memberName(o.assignee) : "Ej tilldelad"}</small>}</td>
-                    {filter === "Alla" && <td className="overview-assignee desktop-only">{o.assignee ? memberName(o.assignee) : "Ej tilldelad"}</td>}
-                    <td className="overview-address desktop-only">{address ? <a href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(address)} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()}>{address} ↗</a> : "—"}</td>
-                  </tr>})}</tbody></table></div>{!shown.length && <p className="empty-orders">Inga arbetsorder att visa.</p>}</section> : <>
-                <section
-                  className={"panel order-list " + (trash ? "trash-list" : "")}
-                >
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          {trash && me.role === "admin" && (
-                            <th>
-                              <span className="sr-only">Markera</span>
+                {home ? (
+                  <section className="panel compact-orders">
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th className="overview-status">Status</th>
+                            <th className="overview-number">
+                              <span className="desktop-only">
+                                Projektnummer
+                              </span>
+                              <span className="mobile-only">Ordernr</span>
                             </th>
-                          )}
-                          <th>Order</th>
-                          <th>Adress</th>
-                          <th>Utförare</th>
-                          <th>Status</th>
-                          <th>
-                            <span className="sr-only">Åtgärder</span>
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {shown.map((o) => (
-                          <tr key={o.id}>
-                            {trash && me.role === "admin" && (
-                              <td>
-                                <input
-                                  type="checkbox"
-                                  aria-label={"Markera " + o.number}
-                                  checked={selected.includes(o.id)}
-                                  onChange={(e) =>
-                                    setSelected(
-                                      e.target.checked
-                                        ? [...selected, o.id]
-                                        : selected.filter((v) => v !== o.id),
-                                    )
-                                  }
-                                />
-                              </td>
+                            <th className="overview-work">Arbete</th>
+                            {filter === "Alla" && (
+                              <th className="overview-assignee desktop-only">
+                                Utförare
+                              </th>
                             )}
-                            <td>
-                              <button
-                                className="order-link"
-                                onClick={() => go("/order/" + o.id)}
-                              >
-                                <strong>{o.number}</strong>
-                                <span>{o.title}</span>
-                              </button>
-                              <small className="muted">
-                                {nameOfProject(o)?.customerNumber} ·{" "}
-                                {nameOfProject(o) &&
-                                  companyName(nameOfProject(o)!.customer)}
-                              </small>
-                            </td>
-                            <td>
-                              {o.address || nameOfProject(o)?.address || "—"}
-                            </td>
-                            <td>{memberName(o.assignee)}</td>
-                            <td>
-                              <Badge order={o} />
-                              {o.completedAt && !trash && (
-                                <small className="muted">
-                                  {date(o.completedAt)}
-                                </small>
-                              )}
-                              {trash && (
-                                <small className="muted">
-                                  Borttagen {date(o.deletedAt)}
-                                </small>
-                              )}
-                            </td>
-                            <td>
-                              {trash ? (
-                                <button
-                                  disabled={busy}
-                                  onClick={() =>
-                                    void act({
-                                      kind: "restore_order",
-                                      id: o.id,
-                                    })
-                                  }
-                                >
-                                  Återställ
-                                </button>
-                              ) : (
-                                <button
-                                  aria-label={"Öppna " + o.number}
-                                  onClick={() => go("/order/" + o.id)}
-                                >
-                                  Visa ›
-                                </button>
-                              )}
-                            </td>
+                            <th className="overview-address desktop-only">
+                              Adress
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {!shown.length && (
-                    <p className="empty">Inga arbetsorder att visa.</p>
-                  )}
-                </section></>}
+                        </thead>
+                        <tbody>
+                          {shown.map((o) => {
+                            const address =
+                              o.address || nameOfProject(o)?.address || "";
+                            return (
+                              <tr
+                                key={o.id}
+                                tabIndex={0}
+                                aria-label={"Öppna " + o.title}
+                                onClick={() => go("/order/" + o.id)}
+                                onKeyDown={(e) => {
+                                  if (
+                                    e.target === e.currentTarget &&
+                                    e.key === "Enter"
+                                  )
+                                    go("/order/" + o.id);
+                                }}
+                              >
+                                <td className="overview-status">
+                                  <span
+                                    title={o.status}
+                                    className={
+                                      "order-status status-" +
+                                      (o.status === "Avslutad"
+                                        ? "green"
+                                        : o.status === "Påbörjad"
+                                          ? "yellow"
+                                          : "red")
+                                    }
+                                  >
+                                    <i aria-hidden="true" />
+                                    <span className="desktop-only">
+                                      {o.status}
+                                    </span>
+                                    <span className="mobile-only">
+                                      {o.status === "Avslutad"
+                                        ? "Klar"
+                                        : o.status === "Påbörjad"
+                                          ? "Pågår"
+                                          : "Ej startad"}
+                                    </span>
+                                  </span>
+                                </td>
+                                <td className="overview-number">
+                                  <span className="desktop-only">
+                                    {nameOfProject(o)?.number || "—"}
+                                  </span>
+                                  <span className="mobile-only">
+                                    {o.number}
+                                  </span>
+                                </td>
+                                <td className="overview-work">
+                                  <button
+                                    className="compact-title"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      go("/order/" + o.id);
+                                    }}
+                                  >
+                                    {o.title}
+                                  </button>
+                                  {filter === "Alla" && (
+                                    <small className="mobile-only mobile-assignee">
+                                      Utförare:{" "}
+                                      {o.assignee
+                                        ? memberName(o.assignee)
+                                        : "Ej tilldelad"}
+                                    </small>
+                                  )}
+                                </td>
+                                {filter === "Alla" && (
+                                  <td className="overview-assignee desktop-only">
+                                    {o.assignee
+                                      ? memberName(o.assignee)
+                                      : "Ej tilldelad"}
+                                  </td>
+                                )}
+                                <td className="overview-address desktop-only">
+                                  {address ? (
+                                    <a
+                                      href={
+                                        "https://www.google.com/maps/search/?api=1&query=" +
+                                        encodeURIComponent(address)
+                                      }
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {address} ↗
+                                    </a>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {!shown.length && (
+                      <p className="empty-orders">Inga arbetsorder att visa.</p>
+                    )}
+                  </section>
+                ) : (
+                  <>
+                    <section
+                      className={
+                        "panel order-list " + (trash ? "trash-list" : "")
+                      }
+                    >
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              {trash && me.role === "admin" && (
+                                <th>
+                                  <span className="sr-only">Markera</span>
+                                </th>
+                              )}
+                              <th>Order</th>
+                              <th>Adress</th>
+                              <th>Utförare</th>
+                              <th>Status</th>
+                              <th>
+                                <span className="sr-only">Åtgärder</span>
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {shown.map((o) => (
+                              <tr key={o.id}>
+                                {trash && me.role === "admin" && (
+                                  <td>
+                                    <input
+                                      type="checkbox"
+                                      aria-label={"Markera " + o.number}
+                                      checked={selected.includes(o.id)}
+                                      onChange={(e) =>
+                                        setSelected(
+                                          e.target.checked
+                                            ? [...selected, o.id]
+                                            : selected.filter(
+                                                (v) => v !== o.id,
+                                              ),
+                                        )
+                                      }
+                                    />
+                                  </td>
+                                )}
+                                <td>
+                                  <button
+                                    className="order-link"
+                                    onClick={() => go("/order/" + o.id)}
+                                  >
+                                    <strong>{o.number}</strong>
+                                    <span>{o.title}</span>
+                                  </button>
+                                  <small className="muted">
+                                    {nameOfProject(o)?.customerNumber} ·{" "}
+                                    {nameOfProject(o) &&
+                                      companyName(nameOfProject(o)!.customer)}
+                                  </small>
+                                </td>
+                                <td>
+                                  {o.address ||
+                                    nameOfProject(o)?.address ||
+                                    "—"}
+                                </td>
+                                <td>{memberName(o.assignee)}</td>
+                                <td>
+                                  <Badge order={o} />
+                                  {o.completedAt && !trash && (
+                                    <small className="muted">
+                                      {date(o.completedAt)}
+                                    </small>
+                                  )}
+                                  {trash && (
+                                    <small className="muted">
+                                      Borttagen {date(o.deletedAt)}
+                                    </small>
+                                  )}
+                                </td>
+                                <td>
+                                  {trash ? (
+                                    <button
+                                      disabled={busy}
+                                      onClick={() =>
+                                        void act({
+                                          kind: "restore_order",
+                                          id: o.id,
+                                        })
+                                      }
+                                    >
+                                      Återställ
+                                    </button>
+                                  ) : (
+                                    <button
+                                      aria-label={"Öppna " + o.number}
+                                      onClick={() => go("/order/" + o.id)}
+                                    >
+                                      Visa ›
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {!shown.length && (
+                        <p className="empty">Inga arbetsorder att visa.</p>
+                      )}
+                    </section>
+                  </>
+                )}
               </>
             )}
           </>
@@ -1017,278 +1334,634 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              <section className="panel detail-grid">
-                <div>
-                  <small>Adress</small>
-                  <p>
-                    {currentOrder.address ||
-                      nameOfProject(currentOrder)?.address}
-                  </p>
-                  <small>Beställare</small>
-                  <p>
-                    {nameOfProject(currentOrder) &&
-                      companyName(nameOfProject(currentOrder)!.customer)}
-                  </p>
-                  <small>Projektnummer</small>
-                  <p>
-                    {nameOfProject(currentOrder)?.number} /{" "}
-                    {nameOfProject(currentOrder)?.customerNumber}
-                  </p>
-                </div>
-                <div>
-                  <small>Skapad av</small>
-                  <p>{memberName(currentOrder.issuedBy)}</p>
-                  <small>Utförare</small>
-                  <p>{memberName(currentOrder.assignee)}</p>
-                  {currentOrder.due && (
-                    <>
-                      <small>Planerat datum</small>
-                      <p>{currentOrder.due}</p>
-                    </>
-                  )}
-                </div>
-                <div className="detail-actions">
-                  {manager && orderLevelAllowed &&
-                    currentOrder.assignee !== me.id &&
-                    currentOrder.status !== "Avslutad" &&
-                    !currentOrder.deletedAt && (
-                      <button
-                        disabled={busy}
-                        onClick={() =>
-                          void act({
-                            ...currentOrder,
-                            kind: "edit_order",
-                            assignee: me.id,
-                          })
-                        }
-                      >
-                        Tilldela mig
-                      </button>
-                    )}
-                  {orderLevelAllowed && !joined(currentOrder, me) && !currentOrder.deletedAt && (
-                    <button
-                      className="primary"
-                      disabled={busy}
-                      onClick={() =>
-                        void act({ kind: "join_order", id: currentOrder.id })
+              <div className="actions">
+                <button
+                  onClick={() => {
+                    try {
+                      printOrder(currentOrder, s);
+                    } catch (e) {
+                      setMessage(
+                        e instanceof Error
+                          ? e.message
+                          : "Exporten misslyckades.",
+                      );
+                    }
+                  }}
+                >
+                  Exportera PDF / skriv ut
+                </button>
+              </div>
+              <div
+                className="order-tabs"
+                role="tablist"
+                aria-label="Avsnitt i arbetsorder"
+              >
+                {[
+                  "Översikt",
+                  "Dagbok",
+                  "Bilagor",
+                  ...(hasControls(currentOrder) ? ["Kontroller"] : []),
+                ].map((t) => (
+                  <button
+                    key={t}
+                    role="tab"
+                    aria-selected={orderTab === t}
+                    className={orderTab === t ? "active" : ""}
+                    onKeyDown={(e) => {
+                      const tabs = Array.from(
+                        e.currentTarget.parentElement!.querySelectorAll<HTMLButtonElement>(
+                          "button",
+                        ),
+                      );
+                      const i = tabs.indexOf(e.currentTarget);
+                      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+                        e.preventDefault();
+                        tabs[
+                          (i +
+                            (e.key === "ArrowRight" ? 1 : -1) +
+                            tabs.length) %
+                            tabs.length
+                        ].focus();
                       }
-                    >
-                      Anslut mig
-                    </button>
-                  )}
-                </div>
-              </section>
-              <section className="panel content-panel">
-                <h2>Beskrivning</h2>
-                <p className="pre-wrap">
-                  {currentOrder.description || "Ingen beskrivning."}
-                </p>
-              </section>
-              <section className="panel content-panel">
-                <h2>Deltagare</h2>
-                <div className="chips">
-                  {currentOrder.participants.map((p) => (
-                    <span key={p.user}>
-                      {memberName(p.user)}
-                      {!p.acceptedAt ? " · Inbjuden" : ""}
-                    </span>
-                  ))}
-                </div>
-                {(orderLevelAllowed && canWrite(currentOrder, me)) &&
-                  currentOrder.status !== "Avslutad" && (
-                    <div className="inline-form">
-                      <select
-                        aria-label="Bjud in deltagare"
-                        value={invite}
-                        onChange={(e) => setInvite(e.target.value)}
-                      >
-                        <option value="">Välj person att bjuda in…</option>
-                        {assignable
-                          .filter(
-                            (p) =>
-                              rank(p.role) <=
-                                rank(
-                                  s.people.find(
-                                    (t) => t.id === currentOrder.assignee,
-                                  )?.role || "supervisor",
-                                ) &&
-                              p.id !== currentOrder.assignee &&
-                              !currentOrder.participants.some(
-                                (t) => t.user === p.id,
-                              ) &&
-                              (!p.external || manager),
-                          )
-                          .map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                              {p.external ? " · Extern" : ""}
-                            </option>
-                          ))}
-                      </select>
-                      <button
-                        disabled={busy || !invite}
-                        onClick={async () => {
-                          if (
-                            await act({
-                              kind: "invite_order",
-                              id: currentOrder.id,
-                              member: invite,
-                            })
-                          )
-                            setInvite("");
-                        }}
-                      >
-                        Bjud in
-                      </button>
-                    </div>
-                  )}
-              </section>
-              {!currentOrder.deletedAt && (
-                <section className="panel content-panel">
-                  {currentOrder.status === "Avslutad" ? (
-                    <>
-                      <h2>Avslutad {date(currentOrder.completedAt)}</h2>
-                      {manager && (
-                        <button
-                          disabled={busy}
-                          className="primary"
-                          onClick={() =>
-                            confirmAction(
-                              "Återöppna arbetsorder?",
-                              <p>
-                                {currentOrder.number} återgår till Påbörjad.
-                              </p>,
-                              "Återöppna",
-                              () =>
-                                act({
-                                  kind: "set_status",
-                                  id: currentOrder.id,
-                                  status: "Påbörjad",
-                                }),
-                              false,
-                            )
-                          }
-                        >
-                          Återöppna order
-                        </button>
-                      )}
-                    </>
-                  ) : (orderLevelAllowed && canWrite(currentOrder, me)) ? (
-                    <>
-                      <h2>Arbeta med ordern</h2>
-                      {currentOrder.status === "Ej påbörjad" && (
+                    }}
+                    onClick={() => {
+                      if (dirty && !confirm("Lämna osparade ändringar?"))
+                        return;
+                      setOrderTab(t);
+                      setDirty(false);
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+              <div hidden={orderTab !== "Översikt"}>
+                <section className="panel detail-grid">
+                  <div>
+                    <small>Adress</small>
+                    <p>
+                      {currentOrder.address ||
+                        nameOfProject(currentOrder)?.address}
+                    </p>
+                    <small>Beställare</small>
+                    <p>
+                      {nameOfProject(currentOrder) &&
+                        companyName(nameOfProject(currentOrder)!.customer)}
+                    </p>
+                    <small>Projektnummer</small>
+                    <p>
+                      {nameOfProject(currentOrder)?.number} /{" "}
+                      {nameOfProject(currentOrder)?.customerNumber}
+                    </p>
+                  </div>
+                  <div>
+                    <small>Ansvarig upprättare</small>
+                    <p>
+                      {memberName(currentOrder.issuedBy)} ·{" "}
+                      {
+                        roles[
+                          people.find((p) => p.id === currentOrder.issuedBy)
+                            ?.role || "supervisor"
+                        ]
+                      }
+                    </p>
+                    <small>Utförare</small>
+                    <p>{memberName(currentOrder.assignee)}</p>
+                    {currentOrder.due && (
+                      <>
+                        <small>Planerat datum</small>
+                        <p>{currentOrder.due}</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="detail-actions">
+                    {manager &&
+                      orderLevelAllowed &&
+                      currentOrder.assignee !== me.id &&
+                      currentOrder.status !== "Avslutad" &&
+                      !currentOrder.deletedAt && (
                         <button
                           disabled={busy}
                           onClick={() =>
                             void act({
-                              kind: "set_status",
-                              id: currentOrder.id,
-                              status: "Påbörjad",
+                              ...currentOrder,
+                              kind: "edit_order",
+                              assignee: me.id,
                             })
                           }
                         >
-                          Starta order
+                          Tilldela mig
                         </button>
                       )}
-                      <label>
-                        Slutkommentar (valfri)
-                        <textarea
-                          value={closing}
-                          onChange={(e) => {
-                            setClosing(e.target.value);
-                            setDirty(true);
-                          }}
-                          placeholder="Du kan avsluta utan att skriva något."
-                          maxLength={10000}
-                        />
-                      </label>
-                      <button
-                        className="primary"
-                        disabled={busy}
-                        onClick={async () => {
-                          if (
-                            await act({
-                              kind: "set_status",
+                    {orderLevelAllowed &&
+                      !joined(currentOrder, me) &&
+                      !currentOrder.deletedAt && (
+                        <button
+                          className="primary"
+                          disabled={busy}
+                          onClick={() =>
+                            void act({
+                              kind: "join_order",
                               id: currentOrder.id,
-                              status: "Avslutad",
-                              comment: closing,
                             })
-                          )
-                            setClosing("");
-                        }}
-                      >
-                        Avsluta order
-                      </button>
-                    </>
-                  ) : (
-                    <p className="muted">
-                      Du kan läsa ordern. Anslut för att kunna uppdatera den.
+                          }
+                        >
+                          Anslut mig
+                        </button>
+                      )}
+                  </div>
+                </section>
+                <section className="panel content-panel">
+                  <h2>Beskrivning</h2>
+                  <p className="pre-wrap">
+                    {currentOrder.description || "Ingen beskrivning."}
+                  </p>
+                </section>
+                <section className="panel content-panel order-sections">
+                  <details open>
+                    <summary>Planering och datum</summary>
+                    <p>
+                      Planerad start: {currentOrder.start || "Ej angiven"}
+                      <br />
+                      Planerat färdigt: {currentOrder.due || "Ej angivet"}
+                      <br />
+                      Påbörjad: {date(currentOrder.startedAt)}
+                      <br />
+                      Avslutad: {date(currentOrder.completedAt)}
                     </p>
+                  </details>
+                  <details>
+                    <summary>Kontakter och underentreprenörer</summary>
+                    {(nameOfProject(currentOrder)?.connections || []).map(
+                      (cn) => {
+                        const firm = s.companies.find(
+                          (c) => c.id === cn.company,
+                        );
+                        const ct = firm?.contacts.find(
+                          (c) => c.id === cn.contact,
+                        );
+                        const p = people.find((p) => p.id === cn.person);
+                        return (
+                          <div className="connection-row" key={cn.id}>
+                            <strong>{firm?.name || p?.employer}</strong>
+                            <span>
+                              {cn.function} · {ct?.name || p?.name}
+                            </span>
+                            <a href={"tel:" + (ct?.phone || p?.phone || "")}>
+                              {ct?.phone || p?.phone}
+                            </a>
+                            <a href={"mailto:" + (ct?.email || p?.email || "")}>
+                              {ct?.email || p?.email}
+                            </a>
+                          </div>
+                        );
+                      },
+                    )}
+                    <p className="muted">
+                      Kontakter hämtas från projektets anknytningar.
+                    </p>
+                  </details>
+                  <details>
+                    <summary>Nycklar och tillträde</summary>
+                    <p className="pre-wrap">
+                      {currentOrder.access ||
+                        "Ingen tillträdesinformation angiven."}
+                    </p>
+                    {["keysReceived", "keysReturned"].map((k) => (
+                      <label className="check-label" key={k}>
+                        <input
+                          type="checkbox"
+                          checked={
+                            !!currentOrder[k as "keysReceived" | "keysReturned"]
+                          }
+                          disabled={
+                            busy ||
+                            !orderLevelAllowed ||
+                            !canWrite(currentOrder, me) ||
+                            currentOrder.status === "Avslutad"
+                          }
+                          onChange={(e) =>
+                            void act({
+                              kind: "set_access",
+                              id: currentOrder.id,
+                              [k]: e.target.checked,
+                            })
+                          }
+                        />
+                        {k === "keysReceived"
+                          ? "Nycklar mottagna"
+                          : "Nycklar återlämnade"}
+                      </label>
+                    ))}
+                  </details>
+                </section>
+                <section className="panel content-panel">
+                  <h2>Deltagare</h2>
+                  <div className="chips">
+                    {currentOrder.participants.map((p) => (
+                      <span key={p.user}>
+                        {memberName(p.user)}
+                        {!p.acceptedAt ? " · Inbjuden" : ""}
+                      </span>
+                    ))}
+                  </div>
+                  {orderLevelAllowed &&
+                    canWrite(currentOrder, me) &&
+                    currentOrder.status !== "Avslutad" && (
+                      <div className="inline-form">
+                        <select
+                          aria-label="Bjud in deltagare"
+                          value={invite}
+                          onChange={(e) => setInvite(e.target.value)}
+                        >
+                          <option value="">Välj person att bjuda in…</option>
+                          {assignable
+                            .filter(
+                              (p) =>
+                                rank(p.role) <=
+                                  rank(
+                                    s.people.find(
+                                      (t) => t.id === currentOrder.assignee,
+                                    )?.role || "supervisor",
+                                  ) &&
+                                p.id !== currentOrder.assignee &&
+                                !currentOrder.participants.some(
+                                  (t) => t.user === p.id,
+                                ) &&
+                                (!p.external || manager),
+                            )
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                                {p.external ? " · Extern" : ""}
+                              </option>
+                            ))}
+                        </select>
+                        <button
+                          disabled={busy || !invite}
+                          onClick={async () => {
+                            if (
+                              await act({
+                                kind: "invite_order",
+                                id: currentOrder.id,
+                                member: invite,
+                              })
+                            )
+                              setInvite("");
+                          }}
+                        >
+                          Bjud in
+                        </button>
+                      </div>
+                    )}
+                </section>
+                {!currentOrder.deletedAt && (
+                  <section className="panel content-panel">
+                    {currentOrder.status === "Avslutad" ? (
+                      <>
+                        <h2>Avslutad {date(currentOrder.completedAt)}</h2>
+                        {manager && (
+                          <button
+                            disabled={busy}
+                            className="primary"
+                            onClick={() =>
+                              confirmAction(
+                                "Återöppna arbetsorder?",
+                                <p>
+                                  {currentOrder.number} återgår till Påbörjad.
+                                </p>,
+                                "Återöppna",
+                                () =>
+                                  act({
+                                    kind: "set_status",
+                                    id: currentOrder.id,
+                                    status: "Påbörjad",
+                                  }),
+                                false,
+                              )
+                            }
+                          >
+                            Återöppna order
+                          </button>
+                        )}
+                      </>
+                    ) : orderLevelAllowed && canWrite(currentOrder, me) ? (
+                      <>
+                        <h2 id="order-completion">Avslut</h2>
+                        {currentOrder.status === "Ej påbörjad" && (
+                          <button
+                            disabled={busy}
+                            onClick={() =>
+                              void act({
+                                kind: "set_status",
+                                id: currentOrder.id,
+                                status: "Påbörjad",
+                              })
+                            }
+                          >
+                            Starta order
+                          </button>
+                        )}
+                        <label>
+                          Slutkommentar (valfri)
+                          <textarea
+                            value={closing}
+                            onChange={(e) => {
+                              setClosing(e.target.value);
+                              setDirty(true);
+                            }}
+                            placeholder="Du kan avsluta utan att skriva något."
+                            maxLength={10000}
+                          />
+                        </label>
+                        <button
+                          className="primary"
+                          disabled={
+                            busy || remainingSelfChecks(currentOrder) > 0
+                          }
+                          onClick={async () => {
+                            if (
+                              await act({
+                                kind: "set_status",
+                                id: currentOrder.id,
+                                status: "Avslutad",
+                                comment: closing,
+                              })
+                            )
+                              setClosing("");
+                          }}
+                        >
+                          Avsluta order
+                        </button>
+                        {remainingSelfChecks(currentOrder) > 0 && (
+                          <p role="status" className="muted">
+                            {remainingSelfChecks(currentOrder)}{" "}
+                            egenkontrollpunkter återstår före avslut.{" "}
+                            <button onClick={() => setOrderTab("Kontroller")}>
+                              Öppna egenkontroll
+                            </button>
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="muted">
+                        Du kan läsa ordern. Anslut för att kunna uppdatera den.
+                      </p>
+                    )}
+                  </section>
+                )}
+              </div>
+              <div hidden={orderTab !== "Dagbok"}>
+                <section className="panel content-panel">
+                  <h2>Dagbok</h2>
+                  {orderLevelAllowed &&
+                    canWrite(currentOrder, me) &&
+                    currentOrder.status !== "Avslutad" && (
+                      <form
+                        onSubmit={noteSubmit}
+                        onChange={() => setDirty(true)}
+                      >
+                        <div className="note-options">
+                          <label>
+                            Avsnitt
+                            <select
+                              value={notePhase}
+                              onChange={(e) => setNotePhase(e.target.value)}
+                            >
+                              {["Före", "Under", "Efter", "Handlingar"].map(
+                                (p) => (
+                                  <option key={p}>{p}</option>
+                                ),
+                              )}
+                            </select>
+                          </label>
+                          <label>
+                            Tidsåtgång i timmar (valfri)
+                            <input
+                              type="number"
+                              min="0"
+                              max="1000"
+                              step="0.25"
+                              value={noteHours}
+                              onChange={(e) => setNoteHours(e.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <label>
+                          Kommentar
+                          <textarea
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            maxLength={10000}
+                          />
+                        </label>
+                        <label>
+                          Bilagor
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/jpeg,image/png,image/webp,application/pdf,text/plain"
+                            onChange={(e) => {
+                              setFiles(Array.from(e.target.files || []));
+                              setPending([]);
+                            }}
+                          />
+                        </label>
+                        <small className="muted">
+                          Högst 5 filer, max 10 MB per fil.
+                        </small>
+                        <button
+                          className="primary"
+                          disabled={busy || (!note.trim() && !files.length)}
+                        >
+                          Lägg till kommentar
+                        </button>
+                      </form>
+                    )}
+                  {[...currentOrder.notes].reverse().map((n) => (
+                    <article className="comment-entry" key={n.id}>
+                      <div>
+                        <strong>{memberName(n.author)}</strong>
+                        <time>{date(n.at)}</time>
+                      </div>
+                      <p className="muted">
+                        {n.phase || "Under"}
+                        {typeof n.hours === "number"
+                          ? " · " + n.hours + " timmar"
+                          : ""}
+                      </p>
+                      <p className="pre-wrap">{n.text}</p>
+                      <div className="chips">
+                        {n.files.map((f) => (
+                          <button
+                            key={f.id}
+                            onClick={() =>
+                              void cloud
+                                .download(f)
+                                .catch((e) => setMessage(e.message))
+                            }
+                          >
+                            ↧ {f.name}
+                          </button>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                </section>
+              </div>
+              {orderTab === "Bilagor" && (
+                <section className="panel content-panel">
+                  <h2>Bilder och handlingar</h2>
+                  <p className="muted">
+                    Bifoga bilder och handlingar i dagboken. De samlas här.
+                  </p>
+                  <button onClick={() => setOrderTab("Dagbok")}>
+                    Lägg till bilaga
+                  </button>
+                  <div className="chips">
+                    {["Alla", "Före", "Under", "Efter", "Handlingar"].map(
+                      (p) => (
+                        <button
+                          key={p}
+                          aria-pressed={filePhase === p}
+                          onClick={() => setFilePhase(p)}
+                        >
+                          {p}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                  <div className="attachment-grid">
+                    {currentOrder.notes
+                      .filter(
+                        (n) =>
+                          filePhase === "Alla" ||
+                          (n.phase || "Under") === filePhase,
+                      )
+                      .flatMap((n) =>
+                        n.files.map((f) => (
+                          <button
+                            key={f.id}
+                            onClick={() =>
+                              void cloud
+                                .download(f)
+                                .catch((e) => setMessage(e.message))
+                            }
+                          >
+                            {f.type.startsWith("image/") ? "▧" : "↧"} {f.name}
+                            <small>
+                              {n.phase || "Under"} · {date(n.at)} ·{" "}
+                              {memberName(n.author)}
+                            </small>
+                          </button>
+                        )),
+                      )}
+                  </div>
+                  {!currentOrder.notes.some((n) => n.files.length > 0) && (
+                    <p>Inga bilagor ännu.</p>
                   )}
                 </section>
               )}
-              <section className="panel content-panel">
-                <h2>Kommentarer och bilagor</h2>
-                {(orderLevelAllowed && canWrite(currentOrder, me)) &&
-                  currentOrder.status !== "Avslutad" && (
-                    <form onSubmit={noteSubmit} onChange={() => setDirty(true)}>
-                      <label>
-                        Kommentar
-                        <textarea
-                          value={note}
-                          onChange={(e) => setNote(e.target.value)}
-                          maxLength={10000}
-                        />
-                      </label>
-                      <label>
-                        Bilagor
-                        <input
-                          type="file"
-                          multiple
-                          accept="image/jpeg,image/png,image/webp,application/pdf,text/plain"
-                          onChange={(e) => {
-                            setFiles(Array.from(e.target.files || []));
-                            setPending([]);
-                          }}
-                        />
-                      </label>
-                      <small className="muted">
-                        Högst 5 filer, max 10 MB per fil.
-                      </small>
-                      <button
-                        className="primary"
-                        disabled={busy || (!note.trim() && !files.length)}
-                      >
-                        Lägg till kommentar
-                      </button>
-                    </form>
-                  )}
-                {[...currentOrder.notes].reverse().map((n) => (
-                  <article className="comment-entry" key={n.id}>
-                    <div>
-                      <strong>{memberName(n.author)}</strong>
-                      <time>{date(n.at)}</time>
-                    </div>
-                    <p className="pre-wrap">{n.text}</p>
-                    <div className="chips">
-                      {n.files.map((f) => (
-                        <button
-                          key={f.id}
-                          onClick={() =>
-                            void cloud
-                              .download(f)
-                              .catch((e) => setMessage(e.message))
-                          }
-                        >
-                          ↧ {f.name}
-                        </button>
-                      ))}
-                    </div>
-                  </article>
-                ))}
-              </section>
-              <section className="panel content-panel">
-                <h2>Historik</h2>
+              {orderTab === "Kontroller" && (
+                <section className="panel content-panel">
+                  <h2>Kontroller</h2>
+                  {controlKinds.map((k) => {
+                    const control = currentOrder.controls?.[k];
+                    if (
+                      !control ||
+                      (!control.enabled &&
+                        !control.items.some((i) => i.at || i.comment || i.done))
+                    )
+                      return null;
+                    return (
+                      <section className="control-section" key={k}>
+                        <h3>{controlLabels[k]}</h3>
+                        {!control.enabled && (
+                          <p className="muted">
+                            Avmarkerad – tidigare dokumentation finns kvar.
+                          </p>
+                        )}
+                        {k === "self" && control.enabled && (
+                          <p>
+                            Egenkontrollen måste vara utförd före avslut.{" "}
+                            {control.items.filter((i) => i.done).length} av{" "}
+                            {control.items.length} utförda.
+                          </p>
+                        )}
+                        {control.items.map((item) => (
+                          <ControlRow
+                            key={item.id}
+                            item={item}
+                            memberName={memberName}
+                            disabled={
+                              busy ||
+                              !control.enabled ||
+                              !orderLevelAllowed ||
+                              !canWrite(currentOrder, me) ||
+                              currentOrder.status === "Avslutad"
+                            }
+                            onDirty={() => setDirty(true)}
+                            onSave={(done, comment) =>
+                              act({
+                                kind: "set_control",
+                                id: currentOrder.id,
+                                control: k,
+                                item: item.id,
+                                done,
+                                comment,
+                              })
+                            }
+                          />
+                        ))}
+                      </section>
+                    );
+                  })}
+                </section>
+              )}
+              {orderLevelAllowed &&
+                canWrite(currentOrder, me) &&
+                currentOrder.status !== "Avslutad" && (
+                  <div className="mobile-order-actions">
+                    <button
+                      onClick={() => {
+                        setOrderTab("Dagbok");
+                      }}
+                    >
+                      Anteckning
+                    </button>
+                    <label className="camera-action">
+                      Foto
+                      <input
+                        aria-label="Ta foto"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        capture="environment"
+                        disabled={busy}
+                        onChange={(e) => {
+                          setFiles(Array.from(e.target.files || []));
+                          setPending([]);
+                          setDirty(true);
+                          setOrderTab("Dagbok");
+                        }}
+                      />
+                    </label>
+                    <button
+                      disabled={busy || remainingSelfChecks(currentOrder) > 0}
+                      onClick={() => {
+                        setOrderTab("Översikt");
+                        requestAnimationFrame(() =>
+                          document
+                            .getElementById("order-completion")
+                            ?.scrollIntoView({ behavior: "smooth" }),
+                        );
+                      }}
+                    >
+                      Avsluta
+                    </button>
+                  </div>
+                )}
+              <details className="panel content-panel">
+                <summary>Historik</summary>
                 <ol className="history">
                   {[...currentOrder.events].reverse().map((e) => (
                     <li key={e.id}>
@@ -1297,7 +1970,7 @@ export default function Home() {
                     </li>
                   ))}
                 </ol>
-              </section>
+              </details>
             </>
           ) : (
             <section className="panel content-panel">
@@ -1316,46 +1989,96 @@ export default function Home() {
               )}
             </div>
             <section className="panel content-panel">
-              <div className="directory-search"><label htmlFor="directory-search">Sök företag</label><input id="directory-search" type="search" placeholder="Sök ett annat företag för att visa dess personal" value={directorySearch} onChange={e=>setDirectorySearch(e.target.value)}/><small className="muted">Sök med minst två tecken. Katalogen visar namn, yrkesroll och företag.</small></div>
-              <h2>{directorySearch.trim() ? "Personal hos sökta företag" : "Mina kollegor · " + me.employer}</h2>
-              {directorySearch.trim() ? <div aria-live="polite">
-                {directoryBusy && <p>Söker företag…</p>}
-                {directoryError && <p role="alert">{directoryError}</p>}
-                {!directoryBusy && !directoryError && !directoryResults.length && <p>{directorySearch.trim().length < 2 ? "Skriv minst två tecken." : "Ingen registrerad personal hittades hos det företaget."}</p>}
-                {directoryResults.map(p=><div className="person-row" key={p.id}><span className="person-name"><span className="avatar">{p.name.split(" ").map(n=>n[0]).slice(0,2).join("")}</span><span>{p.name}<small>{p.job} · {p.employer}</small></span></span></div>)}
-              </div> : <>
-              {directoryPeople.map((p) => (
-                <div className="person-row" key={p.id}>
-                  <button
-                    className="person-name"
-                    onClick={() => go("/person/" + p.id)}
-                  >
-                    <span className="avatar">
-                      {p.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .slice(0, 2)
-                        .join("")}
-                    </span>
-                    <span>
-                      {p.name}
-                      <small>
-                        {p.job} · {p.employer}
-                      </small>
-                    </span>
-                  </button>
-                  <span className="muted">
-                    {p.active
-                      ? p.joined
-                        ? "Aktiv"
-                        : "Väntar på registrering"
-                      : "Inaktiverad"}
-                  </span>
-                  {manager && rank(p.role) > rank(me.role) && (
-                    <button onClick={() => edit("member", p)}>Redigera</button>
-                  )}
+              <div className="directory-search">
+                <label htmlFor="directory-search">Sök företag</label>
+                <input
+                  id="directory-search"
+                  type="search"
+                  placeholder="Sök ett annat företag för att visa dess personal"
+                  value={directorySearch}
+                  onChange={(e) => setDirectorySearch(e.target.value)}
+                />
+                <small className="muted">
+                  Sök med minst två tecken. Katalogen visar namn, yrkesroll och
+                  företag.
+                </small>
+              </div>
+              <h2>
+                {directorySearch.trim()
+                  ? "Personal hos sökta företag"
+                  : "Mina kollegor · " + me.employer}
+              </h2>
+              {directorySearch.trim() ? (
+                <div aria-live="polite">
+                  {directoryBusy && <p>Söker företag…</p>}
+                  {directoryError && <p role="alert">{directoryError}</p>}
+                  {!directoryBusy &&
+                    !directoryError &&
+                    !directoryResults.length && (
+                      <p>
+                        {directorySearch.trim().length < 2
+                          ? "Skriv minst två tecken."
+                          : "Ingen registrerad personal hittades hos det företaget."}
+                      </p>
+                    )}
+                  {directoryResults.map((p) => (
+                    <div className="person-row" key={p.id}>
+                      <span className="person-name">
+                        <span className="avatar">
+                          {p.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .slice(0, 2)
+                            .join("")}
+                        </span>
+                        <span>
+                          {p.name}
+                          <small>
+                            {p.job} · {p.employer}
+                          </small>
+                        </span>
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}</>}
+              ) : (
+                <>
+                  {directoryPeople.map((p) => (
+                    <div className="person-row" key={p.id}>
+                      <button
+                        className="person-name"
+                        onClick={() => go("/person/" + p.id)}
+                      >
+                        <span className="avatar">
+                          {p.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .slice(0, 2)
+                            .join("")}
+                        </span>
+                        <span>
+                          {p.name}
+                          <small>
+                            {p.job} · {p.employer}
+                          </small>
+                        </span>
+                      </button>
+                      <span className="muted">
+                        {p.active
+                          ? p.joined
+                            ? "Aktiv"
+                            : "Väntar på registrering"
+                          : "Inaktiverad"}
+                      </span>
+                      {manager && rank(p.role) > rank(me.role) && (
+                        <button onClick={() => edit("member", p)}>
+                          Redigera
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
             </section>
           </>
         )}
@@ -1428,11 +2151,20 @@ export default function Home() {
               <div>
                 <h1>{route === "/projects" ? "Projekt" : "Företag"}</h1>
                 <p className="muted">
-                  {route === "/projects" ? "Företagets projekt och anknytningar." : "Företagsbank och kontaktpersoner."}
+                  {route === "/projects"
+                    ? "Företagets projekt och anknytningar."
+                    : "Företagsbank och kontaktpersoner."}
                 </p>
               </div>
-              <button className="primary" onClick={() => edit(route === "/projects" ? "project" : "company")}>
-                {route === "/projects" ? "+ Lägg till projekt" : "+ Lägg till företag"}
+              <button
+                className="primary"
+                onClick={() =>
+                  edit(route === "/projects" ? "project" : "company")
+                }
+              >
+                {route === "/projects"
+                  ? "+ Lägg till projekt"
+                  : "+ Lägg till företag"}
               </button>
             </div>
             <div className="bank-grid">
@@ -1489,143 +2221,150 @@ export default function Home() {
                     );
                   return (
                     <>
-                      {route === "/companies" && <section className="panel content-panel">
-                        <div className="section-heading">
-                          <h2>{company.name}</h2>
-                          <div className="actions">
-                            <button onClick={() => edit("company", company)}>
-                              Redigera
-                            </button>
-                            {!company.archived && (
-                              <button
-                                onClick={() =>
-                                  confirmAction(
-                                    "Arkivera företag?",
-                                    <p>Företaget och dess historik behålls.</p>,
-                                    "Arkivera",
-                                    () =>
-                                      act({
-                                        kind: "archive_company",
-                                        id: company.id,
-                                      }),
-                                    false,
-                                  )
-                                }
-                              >
-                                Arkivera
+                      {route === "/companies" && (
+                        <section className="panel content-panel">
+                          <div className="section-heading">
+                            <h2>{company.name}</h2>
+                            <div className="actions">
+                              <button onClick={() => edit("company", company)}>
+                                Redigera
                               </button>
-                            )}
-                          </div>
-                        </div>
-                        <p className="muted">{company.kind}</p>
-                        <h3>Kontaktpersoner</h3>
-                        <div className="contact-grid">
-                          {company.contacts.map((ct) => (
-                            <div key={ct.id}>
-                              {contactName(company, ct)}
-                              <p>
-                                <a href={"mailto:" + ct.email}>{ct.email}</a>
-                                <br />
-                                <a href={"tel:" + ct.phone}>{ct.phone}</a>
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </section>}
-                      {route === "/projects" && <section className="panel content-panel">
-                        <div className="section-heading">
-                          <h2>Projekt</h2>
-                          <button
-                            disabled={company.archived}
-                            onClick={() => {
-                              edit("project");
-                              setBankSelected(company.id);
-                            }}
-                          >
-                            + Nytt projekt
-                          </button>
-                        </div>
-                        {s.projects
-                          .filter(
-                            (p) =>
-                              p.customer === company.id &&
-                              (showArchived || !p.archived),
-                          )
-                          .map((p) => (
-                            <article className="project-card" key={p.id}>
-                              <div className="section-heading">
-                                <h3>
-                                  {p.customerNumber} · {p.name}
-                                </h3>
-                                <button onClick={() => edit("project", p)}>
-                                  Redigera
-                                </button>
-                              </div>
-                              <p className="muted">
-                                Beställarens projektnummer: {p.customerNumber}
-                                <br />
-                                Eget projektnummer: {p.number}
-                                <br />
-                                {p.address}
-                              </p>
-                              <h4>Anknytningar till projektet</h4>
-                              {p.connections.map((cn) => {
-                                const firm = s.companies.find(
-                                  (c) => c.id === cn.company,
-                                );
-                                const contact = firm?.contacts.find(
-                                  (c) => c.id === cn.contact,
-                                );
-                                const person = people.find(
-                                  (p) => p.id === cn.person,
-                                );
-                                return (
-                                  <div className="connection-row" key={cn.id}>
-                                    <span>{firm?.name || person?.name}</span>
-                                    <span>{cn.function}</span>
-                                    <span>
-                                      {contact && firm
-                                        ? contactName(firm, contact)
-                                        : person?.name}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                              <div className="actions">
+                              {!company.archived && (
                                 <button
-                                  onClick={() => {
-                                    setQuery(p.number);
-                                    go("/search");
-                                  }}
+                                  onClick={() =>
+                                    confirmAction(
+                                      "Arkivera företag?",
+                                      <p>
+                                        Företaget och dess historik behålls.
+                                      </p>,
+                                      "Arkivera",
+                                      () =>
+                                        act({
+                                          kind: "archive_company",
+                                          id: company.id,
+                                        }),
+                                      false,
+                                    )
+                                  }
                                 >
-                                  Visa projektets arbetsorder
+                                  Arkivera
                                 </button>
-                                {!p.archived && (
-                                  <button
-                                    onClick={() =>
-                                      confirmAction(
-                                        "Arkivera projekt?",
-                                        <p>
-                                          Historiken behålls. Nya order kan inte
-                                          kopplas till ett arkiverat projekt.
-                                        </p>,
-                                        "Arkivera",
-                                        () =>
-                                          act({
-                                            kind: "archive_project",
-                                            id: p.id,
-                                          }),
-                                        false,
-                                      )
-                                    }
-                                  >
-                                    Arkivera projekt
-                                  </button>
-                                )}
+                              )}
+                            </div>
+                          </div>
+                          <p className="muted">{company.kind}</p>
+                          <h3>Kontaktpersoner</h3>
+                          <div className="contact-grid">
+                            {company.contacts.map((ct) => (
+                              <div key={ct.id}>
+                                {contactName(company, ct)}
+                                <p>
+                                  <a href={"mailto:" + ct.email}>{ct.email}</a>
+                                  <br />
+                                  <a href={"tel:" + ct.phone}>{ct.phone}</a>
+                                </p>
                               </div>
-                            </article>
-                          ))}
-                      </section>}
+                            ))}
+                          </div>
+                        </section>
+                      )}
+                      {route === "/projects" && (
+                        <section className="panel content-panel">
+                          <div className="section-heading">
+                            <h2>Projekt</h2>
+                            <button
+                              disabled={company.archived}
+                              onClick={() => {
+                                edit("project");
+                                setBankSelected(company.id);
+                              }}
+                            >
+                              + Nytt projekt
+                            </button>
+                          </div>
+                          {s.projects
+                            .filter(
+                              (p) =>
+                                p.customer === company.id &&
+                                (showArchived || !p.archived),
+                            )
+                            .map((p) => (
+                              <article className="project-card" key={p.id}>
+                                <div className="section-heading">
+                                  <h3>
+                                    {p.customerNumber} · {p.name}
+                                  </h3>
+                                  <button onClick={() => edit("project", p)}>
+                                    Redigera
+                                  </button>
+                                </div>
+                                <p className="muted">
+                                  Beställarens projektnummer: {p.customerNumber}
+                                  <br />
+                                  Eget projektnummer: {p.number}
+                                  <br />
+                                  {p.address}
+                                </p>
+                                <h4>Anknytningar till projektet</h4>
+                                {p.connections.map((cn) => {
+                                  const firm = s.companies.find(
+                                    (c) => c.id === cn.company,
+                                  );
+                                  const contact = firm?.contacts.find(
+                                    (c) => c.id === cn.contact,
+                                  );
+                                  const person = people.find(
+                                    (p) => p.id === cn.person,
+                                  );
+                                  return (
+                                    <div className="connection-row" key={cn.id}>
+                                      <span>{firm?.name || person?.name}</span>
+                                      <span>{cn.function}</span>
+                                      <span>
+                                        {contact && firm
+                                          ? contactName(firm, contact)
+                                          : person?.name}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                                <div className="actions">
+                                  <button
+                                    onClick={() => {
+                                      setQuery(p.number);
+                                      go("/search");
+                                    }}
+                                  >
+                                    Visa projektets arbetsorder
+                                  </button>
+                                  {!p.archived && (
+                                    <button
+                                      onClick={() =>
+                                        confirmAction(
+                                          "Arkivera projekt?",
+                                          <p>
+                                            Historiken behålls. Nya order kan
+                                            inte kopplas till ett arkiverat
+                                            projekt.
+                                          </p>,
+                                          "Arkivera",
+                                          () =>
+                                            act({
+                                              kind: "archive_project",
+                                              id: p.id,
+                                            }),
+                                          false,
+                                        )
+                                      }
+                                    >
+                                      Arkivera projekt
+                                    </button>
+                                  )}
+                                </div>
+                              </article>
+                            ))}
+                        </section>
+                      )}
                     </>
                   );
                 })()}
@@ -1787,8 +2526,21 @@ export default function Home() {
                         })),
                       },
                       {
+                        key: "start",
+                        label: "Planerad start",
+                        type: "date",
+                        value: o?.start,
+                      },
+                      {
+                        key: "access",
+                        label: "Nycklar och tillträde",
+                        type: "textarea",
+                        value: o?.access,
+                        max: 2000,
+                      },
+                      {
                         key: "due",
-                        label: "Planerat datum (valfritt)",
+                        label: "Planerat färdigt (valfritt)",
                         type: "date",
                         value: o?.due,
                       },
@@ -1805,6 +2557,62 @@ export default function Home() {
                   })()}
                 />
               )}
+              {editor.type === "order" && (
+                <div className="control-picker">
+                  <p>
+                    <strong>Ansvarig upprättare</strong>
+                    <br />
+                    {memberName(
+                      (editor.value as Order)?.issuedBy || me.id,
+                    )} ·{" "}
+                    {
+                      roles[
+                        people.find(
+                          (p) =>
+                            p.id ===
+                            ((editor.value as Order)?.issuedBy || me.id),
+                        )?.role || me.role
+                      ]
+                    }
+                  </p>
+                  <h3>Valbara kontroller</h3>
+                  {controlKinds.map((k) => (
+                    <label className="check-label" key={k}>
+                      <input
+                        name={"control_" + k}
+                        type="checkbox"
+                        defaultChecked={
+                          (editor.value as Order)?.controls?.[k]?.enabled ||
+                          false
+                        }
+                      />
+                      {controlLabels[k]}
+                    </label>
+                  ))}
+                  <p className="muted">
+                    Vald egenkontroll måste utföras före avslut. Avmarkerade
+                    kontroller behåller tidigare dokumentation.
+                  </p>
+                  <label>
+                    Egenkontrollpunkter – en per rad
+                    <textarea
+                      name="selfLabels"
+                      rows={3}
+                      maxLength={5000}
+                      defaultValue={
+                        (editor.value as Order)?.controls?.self?.items
+                          .map((i) => i.label)
+                          .join("\n") ||
+                        "Arbetet kontrollerat enligt arbetsbeskrivningen\nAvvikelser dokumenterade\nDokumentation bifogad"
+                      }
+                    />
+                  </label>
+                  <p className="muted">
+                    Planering, kontakter och UE, nycklar och tillträde, dagbok
+                    och bilagor finns alltid med.
+                  </p>
+                </div>
+              )}
               {editor.type === "member" && (
                 <>
                   <Fields
@@ -1818,7 +2626,13 @@ export default function Home() {
                           required: true,
                           max: 150,
                         },
-                        { key: "lastName", label: "Efternamn", value: p?.name.split(" ").slice(1).join(" "), required: true, max: 150 },
+                        {
+                          key: "lastName",
+                          label: "Efternamn",
+                          value: p?.name.split(" ").slice(1).join(" "),
+                          required: true,
+                          max: 150,
+                        },
                         {
                           key: "job",
                           label: "Yrkesroll",
@@ -2318,5 +3132,71 @@ function Profile({
         </>
       )}
     </section>
+  );
+}
+
+function ControlRow({
+  item,
+  disabled,
+  onSave,
+  memberName,
+  onDirty,
+}: {
+  item: import("../lib/beta").ControlItem;
+  disabled: boolean;
+  onSave: (done: boolean, comment: string) => Promise<boolean>;
+  memberName: (id: string) => string;
+  onDirty: () => void;
+}) {
+  const [comment, setComment] = useState(item.comment);
+  const [done, setDone] = useState(item.done);
+  useEffect(() => {
+    setComment(item.comment);
+    setDone(item.done);
+  }, [item.comment, item.done]);
+  return (
+    <form
+      className="control-row"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        await onSave(done, comment);
+      }}
+    >
+      <label className="check-label">
+        <input
+          type="checkbox"
+          checked={done}
+          disabled={disabled}
+          onChange={(e) => {
+            setDone(e.target.checked);
+            onDirty();
+          }}
+        />
+        {item.label}
+      </label>
+      <textarea
+        aria-label={"Kommentar till " + item.label}
+        placeholder="Kommentar eller hänvisning till bild i dagboken"
+        value={comment}
+        maxLength={2000}
+        disabled={disabled}
+        onChange={(e) => {
+          setComment(e.target.value);
+          onDirty();
+        }}
+      />
+      <div className="actions">
+        <small>
+          {item.at
+            ? memberName(item.author || "") + " · " + date(item.at)
+            : "Ej dokumenterad"}
+        </small>
+        {!disabled && (
+          <button disabled={comment === item.comment && done === item.done}>
+            Spara kontroll
+          </button>
+        )}
+      </div>
+    </form>
   );
 }

@@ -50,6 +50,8 @@ export type Attachment = {
   bucket?: string;
 };
 export type Note = {
+  phase?: string;
+  hours?: number;
   id: string;
   author: string;
   at: string;
@@ -63,6 +65,33 @@ export type Participant = {
   invitedAt: string;
   acceptedAt?: string;
 };
+export type ControlKind = "risk" | "self" | "final";
+export type ControlItem = {
+  id: string;
+  label: string;
+  done: boolean;
+  comment: string;
+  author?: string;
+  at?: string;
+};
+export type OrderControl = { enabled: boolean; items: ControlItem[] };
+export const controlLabels: Record<ControlKind, string> = {
+  risk: "Riskbedömning",
+  self: "Egenkontroll",
+  final: "Slutkontroll",
+};
+export const controlKinds: ControlKind[] = ["risk", "self", "final"];
+export const remainingSelfChecks = (o: Order) =>
+  o.controls?.self?.enabled
+    ? Math.max(1, o.controls.self.items.length) -
+      o.controls.self.items.filter((i) => i.done).length
+    : 0;
+export const hasControls = (o: Order) =>
+  controlKinds.some(
+    (k) =>
+      o.controls?.[k]?.enabled ||
+      o.controls?.[k]?.items.some((i) => i.done || i.comment || i.at),
+  );
 export type Order = {
   id: string;
   project: string;
@@ -76,6 +105,12 @@ export type Order = {
   status: "Ej påbörjad" | "Påbörjad" | "Avslutad";
   due: string;
   priority: string;
+  start?: string;
+  access?: string;
+  keysReceived?: boolean;
+  keysReturned?: boolean;
+  startedAt?: string;
+  controls?: Partial<Record<ControlKind, OrderControl>>;
   completedAt?: string;
   deletedAt?: string;
   participants: Participant[];

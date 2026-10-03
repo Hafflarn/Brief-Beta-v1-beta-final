@@ -1,3 +1,5 @@
+import { configureControls } from "./order-controls";
+import { remainingSelfChecks, ControlKind } from "./beta";
 import { Snapshot, Command, visible, id, rank } from "./beta";
 export function demo(): Snapshot {
   const people = [
@@ -123,7 +125,9 @@ export function demo(): Snapshot {
     title,
     description:
       "Kontakta hyresgästen före besök. Skydda golvet under arbetet.",
-    address: ["Storgatan 12", "Parkvägen 8", "Björkgatan 4", "Stationsgatan 9"][i] + ", Hallstahammar",
+    address:
+      ["Storgatan 12", "Parkvägen 8", "Björkgatan 4", "Stationsgatan 9"][i] +
+      ", Hallstahammar",
     assignee: i === 1 ? "erik" : "samuel",
     issuedBy: "anna",
     issuedAt: at,
@@ -235,7 +239,12 @@ export function demoApply(input: Snapshot, c: Command): Snapshot {
     c.kind === "duplicate_order"
   ) {
     if (c.kind === "edit_order") {
-      Object.assign(o!, c);
+      const controls = configureControls(
+        o!.controls,
+        c.controls as Record<string, { enabled: boolean }> | undefined,
+        c.selfLabels as string | undefined,
+      );
+      Object.assign(o!, c, { controls });
       event(o!, "uppdaterade arbetsordern.");
     } else {
       const source = c.kind === "duplicate_order" ? o! : c;
@@ -251,6 +260,12 @@ export function demoApply(input: Snapshot, c: Command): Snapshot {
         notes: [],
         events: [],
       } as unknown as (typeof s.orders)[0];
+      created.controls = configureControls(
+        (source as unknown as import("./beta").Order).controls,
+        c.controls as Record<string, { enabled: boolean }> | undefined,
+        c.selfLabels as string | undefined,
+        c.kind === "duplicate_order",
+      );
       if (c.kind === "duplicate_order") created.number += " (kopia)";
       event(created, "skapade arbetsordern.");
       s.orders.unshift(created);
@@ -288,6 +303,9 @@ export function demoApply(input: Snapshot, c: Command): Snapshot {
     if (c.kind === "set_status") {
       if (o.status === "Avslutad" && m.role === "worker")
         throw Error("Du får inte återöppna.");
+      if (c.status === "Avslutad" && remainingSelfChecks(o) > 0)
+        throw Error("Egenkontrollen måste vara utförd före avslut.");
+      if (c.status === "Påbörjad" && !o.startedAt) o.startedAt = stamp;
       o.status = c.status as typeof o.status;
       if (o.status === "Avslutad") {
         o.completedAt = stamp;
@@ -305,12 +323,32 @@ export function demoApply(input: Snapshot, c: Command): Snapshot {
         event(o, "startade eller återöppnade arbetsordern.");
       }
     }
+    if (c.kind === "set_access") {
+      if (o.status === "Avslutad") throw Error("Återöppna först.");
+      if (typeof c.keysReceived === "boolean") o.keysReceived = c.keysReceived;
+      if (typeof c.keysReturned === "boolean") o.keysReturned = c.keysReturned;
+      event(o, "uppdaterade nycklar och tillträde.");
+    }
+    if (c.kind === "set_control") {
+      if (o.status === "Avslutad") throw Error("Återöppna först.");
+      const control = o.controls?.[c.control as ControlKind];
+      const item = control?.items.find((i) => i.id === c.item);
+      if (!control?.enabled || !item)
+        throw Error("Kontrollen är inte aktiverad.");
+      item.done = !!c.done;
+      item.comment = String(c.comment || "");
+      item.author = m.id;
+      item.at = stamp;
+      event(o, "uppdaterade en kontrollpunkt.");
+    }
     if (c.kind === "add_note") {
       o.notes.push({
         id: id(),
         at: stamp,
         author: m.id,
         text: String(c.text),
+        phase: String(c.phase || "Under"),
+        hours: c.hours === undefined ? undefined : Number(c.hours),
         files: [],
       });
       event(o, "lade till en kommentar.");
