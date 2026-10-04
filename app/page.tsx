@@ -159,7 +159,7 @@ function Tips({ manager }: { manager: boolean }) {
         "Min lista visar dina uppdrag.",
         "Loggan tar dig till start.",
         "Äldre ordrar finns under Sök.",
-        "Dra tabellen i sidled för att se adressen.",
+        "Öppna ordern för att se adress och detaljer.",
         "Slutkommentar är valfri.",
         "Välj ljust eller mörkt tema.",
         ...(manager
@@ -717,15 +717,6 @@ export default function Home() {
   );
   return (
     <div className="app-shell">
-      <div className="frosted-background" aria-hidden="true">
-        <svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
-          <circle cx="350" cy="90" r="70" />
-          <path d="M210 220 310 160 510 230 730 225 712 280 500 294 350 250 300 530 188 540 240 310Z" />
-          <path d="M750 210 895 245 850 350 715 310Z" />
-          <circle cx="1500" cy="420" r="80" />
-          <path d="M1500 510 1370 560 1100 380 970 345 945 400 1090 460 1310 650 1300 930 1480 1000 1520 790 1580 670Z" />
-        </svg>
-      </div>
       <header className="header">
         <button
           className="brand-home"
@@ -733,7 +724,6 @@ export default function Home() {
           aria-label="Brief – till startsidan"
         >
           <Logo />
-          <span>Keep it brief, get it done.</span>
         </button>
         <small className="beta-label">BETA</small>
         <nav aria-label="Huvudnavigation">
@@ -799,14 +789,6 @@ export default function Home() {
                 >
                   <strong>{me.name}</strong>
                   <small className="muted">{me.employer}</small>
-                  <button
-                    onClick={() => {
-                      setAccountOpen(false);
-                      go("/profile");
-                    }}
-                  >
-                    Min profil <span>›</span>
-                  </button>
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -829,6 +811,14 @@ export default function Home() {
                       </button>
                     </div>
                   </form>
+                  <button
+                    onClick={() => {
+                      setAccountOpen(false);
+                      go("/profile");
+                    }}
+                  >
+                    Min profil <span>›</span>
+                  </button>
                   {!me.external && (
                     <button
                       onClick={() => {
@@ -839,6 +829,20 @@ export default function Home() {
                     >
                       Personal <span>›</span>
                     </button>
+                  )}
+                  {manager && (
+                    <section className="account-company" aria-label="Mitt företag">
+                      <h2>Mitt företag</h2>
+                      <p className="muted">{me.employer}</p>
+                      <div className="account-colleagues">
+                        {people.filter(p => p.active && !p.external && p.employer.trim().toLocaleLowerCase("sv") === me.employer.trim().toLocaleLowerCase("sv")).map(p => (
+                          <button key={p.id} onClick={() => { setAccountOpen(false); go("/person/" + p.id); }}>
+                            <span className="avatar">{p.name.split(" ").map(n => n[0]).slice(0, 2).join("")}</span>
+                            <span>{p.name}<small>{p.job}</small></span>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
                   )}
                 </div>
               </>
@@ -884,13 +888,17 @@ export default function Home() {
           <>
             <div className="page-heading">
               <div>
-                <h1>
+                <div className="heading-title">                <h1>
                   {searching
                     ? "Sök arbetsorder"
                     : trash
                       ? "Papperskorg"
                       : "Översikt"}
                 </h1>
+                  <button className="icon-button" aria-label="Uppdatera" title="Uppdatera" disabled={busy} onClick={() => void refresh()}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9"/></svg>
+                  </button>
+                </div>
                 {searching && (
                   <p className="muted">
                     Sök bland tillgängliga arbetsorder, även äldre avslutade.
@@ -903,12 +911,9 @@ export default function Home() {
                 )}
               </div>
               <div className="actions">
-                <button disabled={busy} onClick={() => void refresh()}>
-                  Uppdatera
-                </button>
                 {manager && !trash && (
                   <button className="primary" onClick={() => edit("order")}>
-                    + Ny arbetsorder
+                    <span className="desktop-only">+ Ny arbetsorder</span><span className="mobile-only">+ Ny</span>
                   </button>
                 )}
                 {trash && me.role === "admin" && (
@@ -1038,14 +1043,14 @@ export default function Home() {
                               <span className="mobile-only">Ordernr</span>
                             </th>
                             <th className="overview-work">Arbete</th>
+                            <th className="overview-address desktop-only">
+                              Adress
+                            </th>
                             {filter === "Alla" && (
                               <th className="overview-assignee desktop-only">
                                 Utförare
                               </th>
                             )}
-                            <th className="overview-address desktop-only">
-                              Adress
-                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1118,13 +1123,6 @@ export default function Home() {
                                     </small>
                                   )}
                                 </td>
-                                {filter === "Alla" && (
-                                  <td className="overview-assignee desktop-only">
-                                    {o.assignee
-                                      ? memberName(o.assignee)
-                                      : "Ej tilldelad"}
-                                  </td>
-                                )}
                                 <td className="overview-address desktop-only">
                                   {address ? (
                                     <a
@@ -1142,6 +1140,13 @@ export default function Home() {
                                     "—"
                                   )}
                                 </td>
+                                {filter === "Alla" && (
+                                  <td className="overview-assignee desktop-only">
+                                    {o.assignee
+                                      ? memberName(o.assignee)
+                                      : "Ej tilldelad"}
+                                  </td>
+                                )}
                               </tr>
                             );
                           })}
@@ -2169,7 +2174,7 @@ export default function Home() {
             </div>
             <div className="bank-grid">
               <section className="panel content-panel company-bank">
-                <h2>Företagsbank</h2>
+                <h2>{route === "/projects" ? "Filtrera efter företag" : "Företagsbank"}</h2>
                 <input
                   aria-label="Sök företag"
                   type="search"

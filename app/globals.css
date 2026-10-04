@@ -1236,3 +1236,117 @@ summary {cursor:pointer;font-weight:650;padding:8px 0;}
 .footer-brand p { margin: 0; line-height: 1.7; color: color-mix(in srgb, var(--page) 72%, white); text-wrap: balance; }
 .brief-footer .actions { justify-content: center; flex-wrap: wrap; }
 .login-footer { margin-top: auto; width: 100%; border-top: 0; padding-top: 28px; }
+
+/* Shared visual scale for the workspace, account menu and sign-in. */
+:root {
+  --page: #f2f5f8;
+  --surface-soft: #edf2f6;
+  --overlay: #ffffff;
+  --selected: #e0f1ef;
+  --accent: #087f79;
+  --button: #087f79;
+  --button-text: #ffffff;
+}
+:root[data-theme="dark"] {
+  --page: #0c1726;
+  --surface: #152338;
+  --surface-soft: #1a2a40;
+  --overlay: #1d2e43;
+  --ink: #edf3f8;
+  --muted: #adbdcd;
+  --border: #2b3b50;
+  --accent: #36beb3;
+  --button: #36beb3;
+  --button-text: #082a2b;
+  --selected: #203d46;
+}
+button, input, select, textarea {border-radius:8px}
+.header {padding:14px max(20px,4vw);gap:16px}
+.header .logo {width:150px}
+.header-user {gap:12px}
+.header nav button {min-height:44px;font-size:14px}
+.avatar {width:36px;height:36px;font-size:12px}
+.user-button,.trash-icon,.icon-button {min-width:44px;min-height:44px}
+.icon-button {display:inline-grid;place-items:center;padding:8px;border:0;background:transparent;color:var(--muted)}
+.icon-button:hover,.trash-icon:hover {background:var(--surface-soft);color:var(--ink)}
+.page-heading {align-items:center;margin-bottom:20px;gap:16px}
+.heading-title {display:flex;align-items:center;gap:8px}
+.heading-title h1 {font-size:32px;letter-spacing:-.7px;margin:0}
+.heading-title + p {margin-top:12px}
+.order-scope {border-radius:8px;margin-bottom:20px}
+.order-scope button {padding:11px 12px;min-height:44px}
+.order-scope .selected {background:var(--selected)!important;color:var(--ink)!important;box-shadow:inset 0 -2px var(--accent)}
+.panel {border-radius:12px}
+.compact-orders table {min-width:700px}
+.compact-orders th,.compact-orders td {padding:13px 16px}
+.compact-orders th {text-transform:none;letter-spacing:0;font-size:12px;background:var(--surface-soft)}
+.compact-orders th.overview-status {width:145px}
+.compact-orders th.overview-number {width:140px}
+.compact-orders th.overview-work {width:25%}
+.compact-orders th.overview-assignee {width:170px}
+.compact-title {font-size:15px;font-weight:600;line-height:1.4}
+.compact-orders .overview-number {color:var(--muted)}
+.overview-address a {color:var(--muted);text-decoration:none}
+.overview-address a:hover {color:var(--accent);text-decoration:underline}
+.compact-orders tbody tr:focus-visible {outline:2px solid var(--accent);outline-offset:-2px}
+.order-status {font-size:12px}
+.badge {font-size:12px;border-radius:6px}
+[data-theme="dark"] .pending {background:#422b38;color:#ffb7bd}
+[data-theme="dark"] .progress {background:#413923;color:#f4d583}
+[data-theme="dark"] .complete {background:#203c34;color:#9ee1ba}
+.account-dropdown {padding:16px;background:var(--overlay);border-radius:12px;gap:4px;max-height:calc(100dvh - 110px);overflow-y:auto}
+.account-dropdown form {order:-1;border-top:0;margin:0 0 8px;padding:0 0 14px}
+.account-dropdown label {margin:0;font-size:12px;color:var(--muted)}
+.dropdown-search input {font-size:14px;padding:10px}
+.account-dropdown>button {padding:10px 8px;min-height:44px}
+.account-dropdown>button:hover {background:var(--surface-soft)}
+.account-company {border-top:1px solid var(--border);margin-top:8px;padding-top:14px}
+.account-company h2 {font-size:13px;margin:0 0 3px}
+.account-company>p {font-size:12px;margin:0 0 10px}
+.account-colleagues {display:grid;gap:4px;max-height:240px;overflow:auto}
+.account-colleagues button {display:flex;align-items:center;gap:10px;border:0;background:transparent;text-align:left;padding:8px;min-height:44px}
+.account-colleagues button:hover {background:var(--surface-soft)}
+.account-colleagues small {display:block;color:var(--muted);font-size:12px}
+.sheet {border-radius:12px;background:var(--overlay)}
+.login-card {border-radius:12px}
+.login-brand .logo-large {width:min(510px,89vw)}
+.login-intro {font-size:18px!important;line-height:1.4}
+.login-page {gap:24px}
+@media(max-width:700px) {
+  .header {padding:10px 16px;gap:8px}
+  .header .logo {width:118px}
+  .header-user {gap:2px}
+  .header nav {gap:24px}
+  .header nav button {font-size:13px;padding:9px 0}
+  .theme-picker select {font-size:11px;max-width:105px;min-height:44px}
+  .app-main {padding:20px 16px 90px}
+  .page-heading {flex-direction:row;align-items:center;gap:10px;margin-bottom:16px}
+  .page-heading>.actions {width:auto;margin-left:auto}
+  .heading-title h1 {font-size:25px;letter-spacing:-.5px}
+  .page-heading .desktop-only {display:none!important}
+  .page-heading .mobile-only {display:inline!important}
+  .page-heading .primary {white-space:nowrap;padding:10px 13px;min-height:44px}
+  .order-scope button {font-size:13px;padding:11px 8px}
+  .compact-orders table {min-width:0}
+  .compact-orders th.overview-status {width:83px}
+  .compact-orders th.overview-number {width:82px}
+  .compact-orders th.overview-work {width:auto}
+  .compact-orders th,.compact-orders td {padding:12px 8px;vertical-align:top;white-space:normal;overflow:visible}
+  .compact-orders th {font-size:11px;letter-spacing:0}
+  .compact-orders .overview-number {font-size:12px;overflow-wrap:anywhere}
+  .compact-orders .order-status {font-size:11px;gap:5px;white-space:nowrap}
+  .compact-orders .order-status i {width:8px;height:8px}
+  .compact-orders .compact-title {font-size:14px;font-weight:600;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;white-space:normal}
+  .compact-orders .mobile-assignee {font-size:12px;line-height:1.4;margin-top:4px}
+  .account-dropdown {top:calc(100% + 10px);max-height:calc(100dvh - 90px)}
+  .login-brand .logo-large {width:min(390px,89vw)}
+  .login-card {padding:26px 22px}
+}
+@media(max-width:360px) {
+  .header .logo {width:96px}
+  .user-button>.menu-chevron {display:none!important}
+  .theme-picker select {max-width:82px;font-size:10px}
+  .compact-orders th.overview-status {width:77px}
+  .compact-orders th.overview-number {width:76px}
+  .compact-orders th,.compact-orders td {padding-inline:6px}
+}
