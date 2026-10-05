@@ -1375,3 +1375,198 @@ button, input, select, textarea {border-radius:8px}
 .order-tabs {overflow-x:auto}
 .order-tabs button {flex-shrink:0;white-space:nowrap;min-width:85px}
 @media(max-width:700px){.diary-fields,.diary-texts{grid-template-columns:1fr}.diary-personnel{grid-template-columns:1fr 1fr;padding-bottom:16px;border-bottom:1px solid var(--border)}.diary-personnel button{justify-self:end;grid-column:2}.inbox-item{align-items:flex-start;flex-direction:column}.building-diary .section-heading{flex-wrap:wrap}.diary-header input{font-size:14px}}
+
+/* Workspace refinement: shared scale, readable data and compact workflows.
+   Login logo dimensions and its animation deliberately remain untouched. */
+.app-shell {font-size:15px;line-height:1.55}
+.app-main {max-width:1280px;padding:32px 32px 24px}
+.app-shell h1 {font-size:32px;letter-spacing:-.7px;margin-bottom:12px}
+.app-shell h2 {font-size:19px;margin-bottom:16px}
+.app-shell h3 {font-size:16px;margin-bottom:12px}
+.app-shell small,.app-shell time {font-size:13px}
+.app-shell label {font-size:14px;margin:14px 0 8px;font-weight:500}
+.app-shell button {min-height:44px;transition:background-color .15s,border-color .15s}
+.app-shell input,.app-shell select {min-height:44px}
+.app-shell .content-panel {padding:24px}
+.app-shell .panel {margin-bottom:16px}
+.header {box-shadow:0 1px 0 var(--border);border-bottom:0}
+.header nav {gap:24px}
+.header nav button {display:flex;align-items:center;gap:7px}
+.nav-count,.scope-count,.tab-count {display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:6px;font-size:12px;font-weight:600;background:var(--surface-soft);color:var(--muted);vertical-align:middle}
+.order-scope {width:fit-content;max-width:100%;display:inline-flex}
+.order-scope button {flex:0 1 auto;display:flex;align-items:center;justify-content:center;gap:10px;min-width:155px}
+.compact-orders table {table-layout:auto}
+.compact-orders th,.compact-orders td {font-size:14px;padding:15px 16px}
+.compact-orders th {font-size:13px;font-weight:600}
+.compact-orders th.overview-status {width:155px}
+.compact-orders th.overview-work {width:30%}
+.compact-orders th.overview-address {width:25%}
+.compact-orders tbody tr {cursor:pointer}
+.compact-orders tbody tr:hover {background:var(--surface-soft)}
+.app-shell .badge {font-size:13px;font-weight:500;padding:5px 9px}
+.progress {background:#fff0bf;color:#775400}
+.complete {background:#ddf3e5;color:#21643f}
+.pending {background:#fbe4e7;color:#923341}
+.app-shell th {font-size:13px;font-weight:600;padding:14px 18px}
+.app-shell td {font-size:14px;padding:16px 18px}
+.app-shell .order-link strong {font-size:16px}
+.order-link span {color:var(--muted)}
+.order-heading {align-items:flex-start;margin-top:4px}
+.order-title-line {display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.order-title-line h1 {margin:0;font-size:34px}
+.order-heading .eyebrow {font-size:13px;letter-spacing:.2px;margin-bottom:8px!important}
+.order-actions {justify-content:flex-end;align-items:center;flex-shrink:0}
+.order-export {order:2}
+.order-actions>.actions {display:contents}
+.order-actions>.actions>.primary {order:1}
+.more-actions {position:relative;order:3}
+.more-actions summary {list-style:none;display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid var(--border);border-radius:8px;background:var(--surface);letter-spacing:2px}
+.more-actions summary::-webkit-details-marker {display:none}
+.more-actions summary:focus-visible {outline:2px solid var(--accent);outline-offset:3px}
+.more-actions>div {position:absolute;right:0;top:calc(100% + 8px);z-index:8;width:190px;padding:6px;border:1px solid var(--border);border-radius:10px;background:var(--surface);box-shadow:var(--shadow)}
+.more-actions button {display:block;width:100%;border:0;background:transparent;text-align:left}
+.more-actions button:hover {background:var(--surface-soft)}
+.order-tabs {gap:4px;margin:24px 0 16px}
+.order-tabs button {flex:0 0 auto;padding:12px 18px;font-size:14px;display:flex;align-items:center;gap:8px}
+.detail-grid {grid-template-columns:repeat(3,minmax(0,1fr));gap:20px 28px;padding:24px}
+.detail-grid p {margin:4px 0 0;overflow-wrap:anywhere;font-size:15px;font-weight:500}
+.detail-actions {grid-column:1/-1;flex-direction:row;justify-content:flex-start}
+.detail-actions:empty {display:none}
+.order-sections details {padding:8px 0}
+.order-sections details:last-child {border-bottom:0}
+.order-sections summary {padding:10px 0}
+.order-sections p {margin:8px 0 12px}
+.back {min-height:36px!important;display:inline-flex;align-items:center;margin-bottom:16px}
+.completion-ready {padding:10px 14px;background:var(--selected);border-radius:8px;font-size:14px;color:var(--ink)}
+.control-row {padding:14px 16px;background:var(--surface);margin:10px 0}
+.control-row .check-label {margin:0;font-size:15px}
+.control-detail summary {font-size:13px;font-weight:400;color:var(--muted);padding:8px 0 0}
+.control-detail[open] summary {margin-bottom:8px}
+.check-label {gap:10px;min-height:36px}
+.check-label input {width:18px!important;height:18px;min-height:18px!important;margin:0;flex-shrink:0}
+.app-shell .empty {padding:32px 20px;max-width:600px;margin:auto}
+.empty strong {display:block;color:var(--ink);font-size:16px;margin-bottom:6px}
+.empty p {margin:0;font-size:14px}
+.inbox-list:has(.empty) {background:transparent;border-style:dashed}
+.attachment-filters {margin:20px 0 8px}
+.attachment-filters button {border-radius:7px;padding:7px 13px;min-height:38px!important}
+.attachment-grid button {display:flex;flex-direction:column;gap:8px;background:var(--surface-soft);padding:16px;min-height:100px;font-weight:500}
+.attachment-grid small {font-weight:400}
+.file-picker {margin:18px 0 0}
+.file-picker-target {position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px dashed var(--border);border-radius:10px;padding:16px;margin:0 0 8px!important;background:var(--surface-soft);cursor:pointer}
+.file-picker-title {font-size:14px;color:var(--muted)}
+.file-picker-button {border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:10px 14px;font-size:14px;min-height:44px}
+.file-picker input {position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;margin:0}
+.file-picker-target:focus-within {outline:2px solid var(--accent);outline-offset:3px}
+.file-picker-target:has(input:disabled) {opacity:.6;cursor:default}
+.selected-files {list-style:none;padding:0;margin:12px 0}
+.selected-files li {display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);overflow-wrap:anywhere}
+.selected-files small {white-space:nowrap;color:var(--muted)}
+.note-submit {margin-top:16px;justify-content:flex-start}
+.note-options {grid-template-columns:2fr 1fr}
+.comment-entry>div:first-child {font-size:15px}
+.history {margin-top:12px}
+.history li {font-size:14px;padding:10px 16px;position:relative}
+.history li::before {content:"";width:7px;height:7px;background:var(--accent);border-radius:50%;position:absolute;left:-4.5px;top:20px}
+.bank-grid {grid-template-columns:260px minmax(0,1fr);gap:20px}
+.company-bank button {border-radius:8px}
+.company-bank button.selected {background:var(--selected)!important;color:var(--ink)!important;border-color:var(--accent)!important}
+.contact-grid {grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.contact-grid>div {border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface-soft)}
+.contact-grid a {font-size:14px;display:block;margin-top:4px;text-decoration:none}
+.contact-grid a:hover {text-decoration:underline}
+.project-card {padding:18px 0}
+.project-card .section-heading h3 {font-size:17px}
+.project-card h4 {font-size:14px;color:var(--muted);margin:14px 0 8px}
+.person-row {padding:14px 0}
+.directory-search {max-width:600px}
+.profile-section-title {font-size:16px!important;margin-top:24px}
+.profile-details {border-bottom:1px solid var(--border);padding-bottom:20px}
+.narrow form {padding-bottom:20px;border-bottom:1px solid var(--border)}
+.narrow form+p {margin-top:16px}
+.tips {border:1px solid var(--border);border-radius:8px;background:var(--surface-soft);padding:10px 14px;margin:24px 0}
+.tips .tip-copy {display:flex;align-items:center;gap:10px}
+.tips p {font-size:13px;margin:0}
+.tip-copy small {font-weight:600}
+.tip-copy em {font-style:normal}
+.app-shell .tip-controls button {min-width:32px;min-height:32px;padding:2px 6px}
+.account-dropdown>button.account-logout {border-top:1px solid var(--border);margin-top:8px;border-radius:0;color:var(--muted)}
+.account-dropdown form {order:0}
+.account-colleagues {max-height:180px}
+.account-dropdown {max-height:calc(100dvh - 120px)}
+.app-shell .footer-brand .logo {color:var(--muted);opacity:.5;width:80px}
+.app-shell .footer-brand p {color:var(--muted);font-size:12px;opacity:.8}
+.app-shell .brief-footer {padding:20px 0;margin-top:16px}
+.brief-footer>.actions:empty {display:none}
+.sheet {max-height:calc(100dvh - 64px);overflow:auto;padding:0 28px 0}
+.sheet-wide {width:min(800px,calc(100vw - 40px));max-width:800px}
+.sheet-head {position:sticky;top:0;z-index:3;margin:0 -28px;padding:20px 28px;background:var(--overlay);border-bottom:1px solid var(--border)}
+.sheet-head h2 {margin:0;font-size:20px}
+.sheet-head button {min-width:44px;min-height:44px}
+.sheet>.form-actions {position:sticky;bottom:0;background:var(--overlay);padding:16px 0;margin-top:24px}
+.sheet .editor-form .form-actions {position:sticky;bottom:0;z-index:2;background:var(--overlay);border-top:1px solid var(--border);margin:24px -28px 0;padding:16px 28px}
+.sheet>p {margin-top:16px}
+.form-intro {font-size:13px;color:var(--muted);margin:16px 0}
+.fields-grid {display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+.fields-grid .field-wide {grid-column:1/-1}
+.fields-grid label {font-size:14px}
+.fields-grid textarea {min-height:96px}
+.required-mark {color:var(--accent);font-weight:700}
+.control-picker {padding:20px;background:var(--surface-soft);border:1px solid var(--border);border-radius:10px}
+.control-picker .check-label {display:inline-flex;margin-right:18px}
+.subform {padding:16px}
+.diary-fields {grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 24px}
+.diary-header label {margin:0;font-size:13px;font-weight:400}
+.diary-header-value {display:block;margin-top:4px;font-size:15px;font-weight:500;color:var(--ink);overflow-wrap:anywhere}
+.diary-header input[type="date"] {margin-top:6px}
+.diary-texts {display:block}
+.diary-group-fields {display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.diary-group-fields label {margin:0;font-size:14px}
+.diary-group-fields .diary-work,.diary-group-fields .diary-nextDay {grid-column:1/-1}
+.diary-save {position:sticky;bottom:16px;z-index:4;padding:14px 18px;border:1px solid var(--border);border-radius:10px;background:var(--surface);box-shadow:var(--shadow);align-items:center}
+.diary-save>span {margin-right:auto;font-size:13px}
+.weather-options {gap:12px 20px}
+.weather-options label {margin:0}
+@media(max-width:1100px) {.header nav{gap:24px;justify-content:flex-start}.header nav button{white-space:nowrap}.order-heading{flex-wrap:wrap}.order-actions{justify-content:flex-start}}
+@media(max-width:700px) {
+ .app-main {padding:20px 16px 90px}
+ .app-shell h1,.heading-title h1 {font-size:26px}
+ .app-shell h2 {font-size:18px}
+ .app-shell .content-panel {padding:18px}
+ .header nav {gap:20px;overflow-x:auto;scrollbar-width:none}
+ .header nav button {font-size:14px;flex-shrink:0}
+ .header-user {gap:0}
+ .order-heading {display:block}
+ .order-title-line h1 {font-size:28px}
+ .order-actions {margin-top:16px;gap:8px;flex-wrap:wrap}
+ .order-export button {font-size:13px;padding:10px}
+ .order-tabs {margin-top:18px;gap:0}
+ .order-tabs button {font-size:14px;padding:12px 14px}
+ .order-scope {width:100%}
+ .order-scope button {flex:1;min-width:0;font-size:14px;padding:10px 8px}
+ .compact-orders th,.compact-orders td {padding:12px 8px;font-size:13px}
+ .compact-orders th.overview-status {width:100px}
+ .compact-orders th.overview-number {width:82px}
+ .compact-orders th.overview-work {width:auto}
+ .compact-orders .badge {font-size:11px;padding:5px 6px;gap:4px}
+ .detail-grid {grid-template-columns:1fr 1fr;padding:18px;gap:18px}
+ .detail-grid p {font-size:14px}
+ .bank-grid {grid-template-columns:1fr}
+ .note-options {grid-template-columns:1fr 1fr}
+ .fields-grid {grid-template-columns:1fr;gap:0}
+ .sheet {padding:0 18px;max-height:calc(100dvh - 24px);width:calc(100vw - 24px)}
+ .sheet-head {margin:0 -18px;padding:14px 18px}
+ .sheet .editor-form .form-actions {margin:20px -18px 0;padding:12px 18px}
+ .diary-fields {grid-template-columns:1fr 1fr;gap:16px}
+ .diary-group-fields {grid-template-columns:1fr}
+ .diary-save {bottom:78px;flex-wrap:wrap;gap:8px;padding:12px}
+ .diary-save>span {flex-basis:100%}
+ .file-picker-target {flex-direction:column;align-items:flex-start;gap:10px;padding:14px}
+ .file-picker-button {width:100%;text-align:center}
+ .tips .tip-copy {display:block}
+ .tips p {font-size:13px}
+ .tips {gap:8px;padding:10px 12px}
+ .account-dropdown {width:min(340px,calc(100vw - 32px));max-height:calc(100dvh - 90px)}
+ .history li {align-items:flex-start}
+}
+@media(prefers-reduced-motion:reduce){.app-shell button{transition:none}}

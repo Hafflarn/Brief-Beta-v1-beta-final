@@ -2,6 +2,7 @@
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import Login from "./login";
 import BuildingDiary from "./components/building-diary";
+import FilePicker from "./components/file-picker";
 import { printOrder } from "../lib/order-print";
 import Logo from "./components/logo";
 import ThemePicker from "./components/theme";
@@ -53,12 +54,13 @@ type Field = {
   readOnly?: boolean;
   max?: number;
 };
+const calendarDate = (value?: string) => value ? new Date(value + "T12:00:00").toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" }) : "Ej angivet";
 function Fields({ fields }: { fields: Field[] }) {
   return (
-    <>
+    <div className="fields-grid">
       {fields.map((f) => (
-        <label key={f.key}>
-          {f.label}
+        <label key={f.key} className={f.type === "textarea" ? "field-wide" : ""}>
+          {f.label}{f.required && <span className="required-mark" aria-label="obligatoriskt"> *</span>}
           {f.options ? (
             <select name={f.key} defaultValue={f.value} required={f.required}>
               <option value="">Välj…</option>
@@ -88,7 +90,7 @@ function Fields({ fields }: { fields: Field[] }) {
           )}
         </label>
       ))}
-    </>
+    </div>
   );
 }
 function Badge({ order }: { order: Order }) {
@@ -112,10 +114,12 @@ function Sheet({
   title,
   children,
   onClose,
+  wide = false,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -128,7 +132,7 @@ function Sheet({
   return (
     <dialog
       ref={ref}
-      className="sheet"
+      className={"sheet" + (wide ? " sheet-wide" : "")}
       onCancel={(e) => {
         e.preventDefault();
         onClose();
@@ -144,42 +148,18 @@ function Sheet({
     </dialog>
   );
 }
-function Tips({ manager }: { manager: boolean }) {
+function Tips({ manager, route }: { manager: boolean; route: string }) {
   const [index, setIndex] = useState(0);
   const [hidden, setHidden] = useState(false);
-  const [short, setShort] = useState(true);
-  useEffect(() => {
-    const mq = matchMedia("(max-width:600px)");
-    const update = () => setShort(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
-  const tips = short
-    ? [
-        "Min lista visar dina uppdrag.",
-        "Loggan tar dig till start.",
-        "Äldre ordrar finns under Sök.",
-        "Öppna ordern för att se adress och detaljer.",
-        "Slutkommentar är valfri.",
-        "Välj ljust eller mörkt tema.",
-        ...(manager
-          ? ["Välj dig själv som utförare.", "Återställ från papperskorgen."]
-          : []),
-      ]
-    : [
-        "Tryck på loggan för att komma tillbaka till din lista.",
-        "Hitta äldre avslutade arbetsorder på söksidan.",
-        "Sök arbetsorder direkt i kontomenyn.",
-        "Min lista visar uppdrag där du är tilldelad eller deltagare.",
-        "Du kan avsluta en arbetsorder utan slutkommentar.",
-        ...(manager
-          ? [
-              "Välj dig själv som utförare när du tilldelar en arbetsorder.",
-              "Återställ borttagna arbetsorder från papperskorgen inom 14 dagar.",
-            ]
-          : []),
-      ];
+  const tips = route.startsWith("/order/")
+    ? ["Dokumentera arbetet i dagboken och samla bilder under Bilagor.", "Egenkontroller behöver vara utförda före avslut.", "Slutkommentar är valfri."]
+    : route === "/projects" ? ["Öppna projektets arbetsorder från projektkortet.", "Projektets anknytningar samlar kontakter och underentreprenörer."]
+    : route === "/companies" ? ["Samla kontaktpersoner hos respektive företag.", "Arkiverade företag hittar du med Visa arkiverade."]
+    : route === "/people" ? ["Sök på företag för att hitta dess personal.", "Öppna en person för att visa kontaktuppgifter."]
+    : route === "/inbox" ? ["Här samlas byggdagböcker och avslut från arbetsorder du har skapat."]
+    : route === "/trash" ? ["Borttagna arbetsorder kan återställas inom 14 dagar."]
+    : route.includes("profile") || route.startsWith("/person/") ? ["Telefon och e-post uppdateras på profilsidan."]
+    : ["Min lista visar uppdrag där du är tilldelad eller deltagare.", "Sök hittar även äldre avslutade arbetsorder.", ...(manager ? ["Skapa en arbetsorder och välj vilka avsnitt som behövs."] : [])];
   useEffect(() => {
     const timer = setInterval(
       () => setIndex((i) => (i + 1) % tips.length),
@@ -705,6 +685,8 @@ export default function Home() {
     );
   const nav = [
     { path: "/orders", text: "Översikt" },
+    { path: "/search", text: "Sök" },
+    { path: "/inbox", text: "Inkorg" },
     ...(manager
       ? [
           { path: "/projects", text: "Projekt" },
@@ -738,7 +720,7 @@ export default function Home() {
               className={route === n.path ? "nav-active" : ""}
               onClick={() => go(n.path)}
             >
-              {n.text}
+              {n.text}{n.path === "/inbox" && inbox.some(i => !i.readAt) && <span className="nav-count">{inbox.filter(i => !i.readAt).length}</span>}
             </button>
           ))}
         </nav>
@@ -836,6 +818,26 @@ export default function Home() {
                       Personal <span>›</span>
                     </button>
                   )}
+            <button className="account-logout"
+              onClick={async () => {
+                if (dirty && !confirm("Lämna osparade ändringar och logga ut?"))
+                  return;
+                try {
+                  if (!isDemo) {
+                    const { error } = await supabase!.auth.signOut();
+                    if (error) throw error;
+                  }
+                  setS(null);
+                  setIsDemo(false);
+                  setDirty(false);
+                  setMessage("");
+                } catch (e) {
+                  setMessage(String(e));
+                }
+              }}
+            >
+              Logga ut
+            </button>
                   {manager && (
                     <section className="account-company" aria-label="Mitt företag">
                       <h2>Mitt företag</h2>
@@ -959,14 +961,14 @@ export default function Home() {
                       className={filter === "Mina ordrar" ? "selected" : ""}
                       onClick={() => setFilter("Mina ordrar")}
                     >
-                      Min lista
+                      Min lista <span className="scope-count">{orders.filter(o => !o.deletedAt && (joined(o, me) || o.participants.some(p => p.user === me.id))).length}</span>
                     </button>
                     <button
                       aria-pressed={filter === "Alla"}
                       className={filter === "Alla" ? "selected" : ""}
                       onClick={() => setFilter("Alla")}
                     >
-                      Företagslista
+                      Företagslista <span className="scope-count">{orders.filter(o => !o.deletedAt).length}</span>
                     </button>
                   </div>
                 )}
@@ -1009,7 +1011,7 @@ export default function Home() {
                     )}
                   </div>
                 )}
-                {searching && <p className="muted">{shown.length} träffar</p>}
+                {searching && <p className="muted">{shown.length} {shown.length === 1 ? "träff" : "träffar"}</p>}
                 {trash && selected.length > 0 && me.role === "admin" && (
                   <button
                     className="danger"
@@ -1078,29 +1080,7 @@ export default function Home() {
                                 }}
                               >
                                 <td className="overview-status">
-                                  <span
-                                    title={o.status}
-                                    className={
-                                      "order-status status-" +
-                                      (o.status === "Avslutad"
-                                        ? "green"
-                                        : o.status === "Påbörjad"
-                                          ? "yellow"
-                                          : "red")
-                                    }
-                                  >
-                                    <i aria-hidden="true" />
-                                    <span className="desktop-only">
-                                      {o.status}
-                                    </span>
-                                    <span className="mobile-only">
-                                      {o.status === "Avslutad"
-                                        ? "Klar"
-                                        : o.status === "Påbörjad"
-                                          ? "Pågår"
-                                          : "Ej startad"}
-                                    </span>
-                                  </span>
+                                  <Badge order={o} />
                                 </td>
                                 <td className="overview-number">
                                   <span className="desktop-only">
@@ -1285,22 +1265,39 @@ export default function Home() {
               <button className="back" onClick={() => go("/orders")}>
                 ← Till min lista
               </button>
-              <div className="page-heading">
+              <div className="page-heading order-heading">
                 <div>
-                  <p className="eyebrow">{nameOfProject(currentOrder)?.name}</p>
-                  <h1>
-                    {currentOrder.number} · {currentOrder.title}
-                  </h1>
-                  <Badge order={currentOrder} />
+                  <p className="eyebrow">{nameOfProject(currentOrder)?.name} · {currentOrder.number}</p>
+                  <div className="order-title-line"><h1>{currentOrder.title}</h1><Badge order={currentOrder} /></div>
                 </div>
+                <div className="actions order-actions">
+              <div className="order-export">
+                <button
+                  onClick={() => {
+                    try {
+                      printOrder(currentOrder, s);
+                    } catch (e) {
+                      setMessage(
+                        e instanceof Error
+                          ? e.message
+                          : "Exporten misslyckades.",
+                      );
+                    }
+                  }}
+                >
+                  Exportera PDF / skriv ut
+                </button>
+              </div>
                 {manager && orderLevelAllowed && !currentOrder.deletedAt && (
                   <div className="actions">
                     <button
+                      className="primary"
                       disabled={busy || currentOrder.status === "Avslutad"}
                       onClick={() => edit("order", currentOrder)}
                     >
                       Redigera
                     </button>
+                    <details className="more-actions"><summary aria-label="Fler orderåtgärder">•••</summary><div>
                     <button
                       disabled={busy}
                       onClick={() =>
@@ -1342,25 +1339,10 @@ export default function Home() {
                     >
                       Ta bort
                     </button>
+                    </div></details>
                   </div>
                 )}
-              </div>
-              <div className="actions">
-                <button
-                  onClick={() => {
-                    try {
-                      printOrder(currentOrder, s);
-                    } catch (e) {
-                      setMessage(
-                        e instanceof Error
-                          ? e.message
-                          : "Exporten misslyckades.",
-                      );
-                    }
-                  }}
-                >
-                  Exportera PDF / skriv ut
-                </button>
+                </div>
               </div>
               <div
                 className="order-tabs"
@@ -1403,7 +1385,7 @@ export default function Home() {
                       setDirty(false);
                     }}
                   >
-                    {t}
+                    {t}{t === "Bilagor" && <span className="tab-count">{currentOrder.notes.reduce((count, n) => count + n.files.length, 0)}</span>}{t === "Kontroller" && remainingSelfChecks(currentOrder) > 0 && <span className="tab-count">{remainingSelfChecks(currentOrder)}</span>}
                   </button>
                 ))}
               </div>
@@ -1426,43 +1408,12 @@ export default function Home() {
               />}
               <div hidden={orderTab !== "Översikt"}>
                 <section className="panel detail-grid">
-                  <div>
-                    <small>Adress</small>
-                    <p>
-                      {currentOrder.address ||
-                        nameOfProject(currentOrder)?.address}
-                    </p>
-                    <small>Beställare</small>
-                    <p>
-                      {nameOfProject(currentOrder) &&
-                        companyName(nameOfProject(currentOrder)!.customer)}
-                    </p>
-                    <small>Projektnummer</small>
-                    <p>
-                      {nameOfProject(currentOrder)?.number} /{" "}
-                      {nameOfProject(currentOrder)?.customerNumber}
-                    </p>
-                  </div>
-                  <div>
-                    <small>Ansvarig upprättare</small>
-                    <p>
-                      {memberName(currentOrder.issuedBy)} ·{" "}
-                      {
-                        roles[
-                          people.find((p) => p.id === currentOrder.issuedBy)
-                            ?.role || "supervisor"
-                        ]
-                      }
-                    </p>
-                    <small>Utförare</small>
-                    <p>{memberName(currentOrder.assignee)}</p>
-                    {currentOrder.due && (
-                      <>
-                        <small>Planerat datum</small>
-                        <p>{currentOrder.due}</p>
-                      </>
-                    )}
-                  </div>
+                  <div><small>Adress</small><p>{currentOrder.address || nameOfProject(currentOrder)?.address || "—"}</p></div>
+                  <div><small>Beställare</small><p>{companyName(nameOfProject(currentOrder)?.customer || "")}</p></div>
+                  <div><small>Ansvarig upprättare</small><p>{memberName(currentOrder.issuedBy)} · {roles[people.find(p => p.id === currentOrder.issuedBy)?.role || "supervisor"]}</p></div>
+                  <div><small>Eget projektnummer</small><p>{nameOfProject(currentOrder)?.number || "—"}</p></div>
+                  <div><small>Beställarens projektnummer</small><p>{nameOfProject(currentOrder)?.customerNumber || "—"}</p></div>
+                  <div><small>Utförare</small><p>{memberName(currentOrder.assignee)}</p></div>
                   <div className="detail-actions">
                     {manager &&
                       orderLevelAllowed &&
@@ -1510,9 +1461,9 @@ export default function Home() {
                   <details open>
                     <summary>Planering och datum</summary>
                     <p>
-                      Planerad start: {currentOrder.start || "Ej angiven"}
+                      Planerad start: {calendarDate(currentOrder.start)}
                       <br />
-                      Planerat färdigt: {currentOrder.due || "Ej angivet"}
+                      Planerat färdigt: {calendarDate(currentOrder.due)}
                       <br />
                       Påbörjad: {date(currentOrder.startedAt)}
                       <br />
@@ -1585,7 +1536,7 @@ export default function Home() {
                   </details>
                 </section>
                 <section className="panel content-panel">
-                  <h2>Deltagare</h2>
+                  <h2>Deltagare <span className="tab-count">{currentOrder.participants.length}</span></h2>
                   <div className="chips">
                     {currentOrder.participants.map((p) => (
                       <span key={p.user}>
@@ -1677,6 +1628,7 @@ export default function Home() {
                     ) : orderLevelAllowed && canWrite(currentOrder, me) ? (
                       <>
                         <h2 id="order-completion">Avslut</h2>
+                        {remainingSelfChecks(currentOrder) === 0 && <p className="completion-ready">✓ Egenkontroller klara eller inte aktiverade. Ordern kan avslutas när arbetet är färdigt.</p>}
                         {currentOrder.status === "Ej påbörjad" && (
                           <button
                             disabled={busy}
@@ -1784,27 +1736,15 @@ export default function Home() {
                             maxLength={10000}
                           />
                         </label>
-                        <label>
-                          Bilagor
-                          <input
-                            type="file"
-                            multiple
-                            accept="image/jpeg,image/png,image/webp,application/pdf,text/plain"
-                            onChange={(e) => {
-                              setFiles(Array.from(e.target.files || []));
-                              setPending([]);
-                            }}
-                          />
-                        </label>
-                        <small className="muted">
-                          Högst 5 filer, max 10 MB per fil.
-                        </small>
+                        <FilePicker files={files} disabled={busy} onChange={selected => {setFiles(selected);setPending([]);}} />
+                        <div className="form-actions note-submit">
                         <button
                           className="primary"
                           disabled={busy || (!note.trim() && !files.length)}
                         >
                           Lägg till kommentar
                         </button>
+                        </div>
                       </form>
                     )}
                   {[...currentOrder.notes].reverse().map((n) => (
@@ -1840,18 +1780,16 @@ export default function Home() {
               </div>
               {orderTab === "Bilagor" && (
                 <section className="panel content-panel">
-                  <h2>Bilder och handlingar</h2>
+                  <div className="section-heading"><h2>Bilder och handlingar</h2><button onClick={() => setOrderTab("Dagbok")}>+ Lägg till bilaga</button></div>
                   <p className="muted">
                     Bifoga bilder och handlingar i dagboken. De samlas här.
                   </p>
-                  <button onClick={() => setOrderTab("Dagbok")}>
-                    Lägg till bilaga
-                  </button>
-                  <div className="chips">
+                  <div className="chips attachment-filters">
                     {["Alla", "Före", "Under", "Efter", "Handlingar"].map(
                       (p) => (
                         <button
                           key={p}
+                          className={filePhase === p ? "selected" : ""}
                           aria-pressed={filePhase === p}
                           onClick={() => setFilePhase(p)}
                         >
@@ -1887,7 +1825,7 @@ export default function Home() {
                       )}
                   </div>
                   {!currentOrder.notes.some((n) => n.files.length > 0) && (
-                    <p>Inga bilagor ännu.</p>
+                    <div className="empty"><strong>Inga bilagor ännu</strong><p>Lägg till bilder eller dokument i dagboken. De samlas här efter att kommentaren sparats.</p></div>
                   )}
                 </section>
               )}
@@ -2011,7 +1949,7 @@ export default function Home() {
           <div className="page-heading"><h1>Inkorg</h1><button onClick={() => void refresh()} disabled={busy}>Uppdatera</button></div>
           <p className="muted">Sparade byggdagböcker och avslutade arbetsorder som du har skapat.</p>
           <section className="panel content-panel inbox-list">
-            {!inbox.length && <p className="empty">Din inkorg är tom.</p>}
+            {!inbox.length && <div className="empty"><strong>Du är uppdaterad</strong><p>Din inkorg är tom. Nya byggdagböcker och avslutade arbetsorder visas här.</p></div>}
             {inbox.map(item => <article key={item.id} className={"inbox-item " + (!item.readAt ? "unread" : "")}>
               <div><small>{item.kind === "diary" ? "Byggdagboksrapport" : "Avslutad arbetsorder"} · {date(item.at)}</small><h2>{item.title}</h2><p>{item.sender}{!item.readAt ? " · Oläst" : " · Läst"}</p></div>
               <div className="actions"><button className="primary" onClick={() => {
@@ -2316,15 +2254,7 @@ export default function Home() {
                         <section className="panel content-panel">
                           <div className="section-heading">
                             <h2>Projekt</h2>
-                            <button
-                              disabled={company.archived}
-                              onClick={() => {
-                                edit("project");
-                                setBankSelected(company.id);
-                              }}
-                            >
-                              + Nytt projekt
-                            </button>
+
                           </div>
                           {s.projects
                             .filter(
@@ -2416,7 +2346,7 @@ export default function Home() {
             </div>
           </>
         )}
-        <Tips manager={manager} />
+        <Tips manager={manager} route={route} />
         <footer className="brief-footer">
           <div className="footer-brand"><Logo /><p>© 2026 Brief. All rights reserved. · Established 2026 · Sweden</p></div>
           <div className="actions">
@@ -2443,26 +2373,7 @@ export default function Home() {
                 ))}
               </select>
             )}
-            <button
-              onClick={async () => {
-                if (dirty && !confirm("Lämna osparade ändringar och logga ut?"))
-                  return;
-                try {
-                  if (!isDemo) {
-                    const { error } = await supabase!.auth.signOut();
-                    if (error) throw error;
-                  }
-                  setS(null);
-                  setIsDemo(false);
-                  setDirty(false);
-                  setMessage("");
-                } catch (e) {
-                  setMessage(String(e));
-                }
-              }}
-            >
-              Logga ut
-            </button>
+
           </div>
         </footer>
       </main>
@@ -2514,8 +2425,9 @@ export default function Home() {
             }[editor.type]
           }
           onClose={closeEditor}
+          wide
         >
-          <form onSubmit={saveEditor} onChange={() => setDirty(true)}>
+          <form className="editor-form" onSubmit={saveEditor} onChange={() => setDirty(true)}><p className="form-intro">Fält markerade med * är obligatoriska.</p>
             <fieldset disabled={busy}>
               {editor.type === "order" && (
                 <Fields
@@ -3106,7 +3018,7 @@ function Profile({
         <h1>{self ? "Min profil" : person.name}</h1>
         {onEdit && <button onClick={onEdit}>Redigera</button>}
       </div>
-      <dl className="profile-details">
+      <h2 className="profile-section-title">Profiluppgifter</h2><dl className="profile-details">
         <dt>Namn</dt>
         <dd>{person.name}</dd>
         <dt>Yrkesroll</dt>
@@ -3118,6 +3030,7 @@ function Profile({
       </dl>
       {self ? (
         <>
+          <h2 className="profile-section-title">Kontaktuppgifter</h2>
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -3219,6 +3132,8 @@ function ControlRow({
         />
         {item.label}
       </label>
+      <details className="control-detail" open={!item.done || comment !== item.comment || done !== item.done ? true : undefined}>
+      <summary>{item.done ? "Visa dokumentation / redigera" : "Kommentar och dokumentation"}</summary>
       <textarea
         aria-label={"Kommentar till " + item.label}
         placeholder="Kommentar eller hänvisning till bild i dagboken"
@@ -3237,11 +3152,12 @@ function ControlRow({
             : "Ej dokumenterad"}
         </small>
         {!disabled && (
-          <button disabled={comment === item.comment && done === item.done}>
+          <button className="primary" disabled={comment === item.comment && done === item.done}>
             Spara kontroll
           </button>
         )}
       </div>
+      </details>
     </form>
   );
 }

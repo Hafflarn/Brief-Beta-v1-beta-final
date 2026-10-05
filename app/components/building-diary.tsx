@@ -1,4 +1,5 @@
 "use client";
+import FilePicker from "./file-picker";
 import { useState } from 'react';
 import type { Member, Order } from '../../lib/beta';
 import { date as displayDate } from '../../lib/beta';
@@ -29,8 +30,8 @@ function DiaryForm(props:Props & {report?:DiaryReport;onChanged:(v:boolean)=>voi
  function staff(index:number,patch:Partial<Personnel>){update({personnel:content.personnel.map((r,i)=>i===index?{...r,...patch}:r)})}
  async function save(submit:boolean){if(saving||locked)return;setSaving(true);setMessage('');try{if(submit&&!content.work.trim())throw Error('Beskriv dagens utförda arbeten innan du sparar rapporten.');if(!reportDate)throw Error('Ange rapportdatum.');if(content.files.length+files.length>5)throw Error('Högst fem bilagor per rapport.');if(await props.onSave(reportId,reportDate,content,files,submit)){setFiles([]);props.onSaved(reportId);setMessage(submit?'Rapporten är sparad och skickad till ansvarig platschefs inkorg.':'Utkast sparat. Det har inte skickats till inkorgen.')}}catch(e){setMessage(e instanceof Error?e.message:'Rapporten kunde inte sparas.')}finally{setSaving(false)}}
  return <form onSubmit={e=>{e.preventDefault();void save(true)}}>
-  <section className="panel content-panel diary-header"><h3>Dagens rapport</h3><p className="muted">Uppgifterna hämtas automatiskt från arbetsordern och kan inte ändras här.</p><div className="diary-fields">
-   {([['Projekt',header.project],['Projektnummer',header.projectNumber],['Arbetsordernummer',header.orderNumber],['Beställare',header.customer],['Adress',header.address],['Ansvarig upprättare',header.author],['Ansvarig platschef',header.siteManager]] as const).map(([label,value])=><label key={label}>{label}<input value={value} readOnly /></label>)}
+  <section className="panel content-panel diary-header"><h3>Dagens rapport</h3><p className="muted">Hämtat från arbetsordern · fasta uppgifter</p><div className="diary-fields">
+   {([['Projekt',header.project],['Projektnummer',header.projectNumber],['Arbetsordernummer',header.orderNumber],['Beställare',header.customer],['Adress',header.address],['Ansvarig upprättare',header.author],['Ansvarig platschef',header.siteManager]] as const).map(([label,value])=><label key={label}>{label}<span className="diary-header-value">{value || "—"}</span></label>)}
    <label>Datum<input type="date" value={reportDate} disabled={locked||saving} onChange={e=>{setReportDate(e.target.value);props.onChanged(true)}} required /></label>
   </div></section>
   {props.report?.submittedAt&&<p className="notice">Sparad {displayDate(props.report.submittedAt)}. Rapporten är låst.</p>}
@@ -43,11 +44,15 @@ function DiaryForm(props:Props & {report?:DiaryReport;onChanged:(v:boolean)=>voi
     <label>Timmar totalt<input type="number" min={0} max={100000} step="0.25" value={r.hours} onChange={e=>staff(i,{hours:e.target.value})}/></label>
     {!locked&&<button type="button" aria-label={'Ta bort personalrad '+(i+1)} onClick={()=>update({personnel:content.personnel.filter((_,n)=>n!==i)})}>×</button>}
    </div>)}{!locked&&<button type="button" disabled={content.personnel.length>=50} onClick={()=>update({personnel:[...content.personnel,{trade:'',company:'',count:'',hours:''}]})}>+ Lägg till rad</button>}</section>
-   <div className="diary-texts">{diaryTexts.map(([key,label])=><section className={'panel content-panel diary-'+key} key={key}><label>{label}<textarea rows={3} maxLength={10000} value={content[key]} onChange={e=>update({[key]:e.target.value})} required={key==='work'} /></label></section>)}</div>
-   <section className="panel content-panel"><h3>Fotografier och bilagor</h3>{!locked&&<label>Välj bilder eller dokument<input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf,text/plain" onChange={e=>{setFiles(Array.from(e.target.files || []));props.onChanged(true)}}/></label>}{files.map(f=><p key={f.name}>{f.name}</p>)}<small className="muted">Högst fem filer, 10 MB per fil.</small></section>
+   <div className="diary-texts">{[
+    {title:'Dagens arbete',keys:['work','deliveries','equipment']},
+    {title:'Avvikelser och uppföljning',keys:['deviations','decisions','safety','quality']},
+    {title:'Nästa arbetsdag',keys:['nextDay']}
+   ].map(group=><section className="panel content-panel diary-group" key={group.title}><h3>{group.title}</h3><div className="diary-group-fields">{diaryTexts.filter(([key])=>group.keys.includes(key)).map(([key,label])=><label className={'diary-'+key} key={key}>{label}{key==='work'&&<span className="required-mark"> *</span>}<textarea rows={key==='work'?4:3} maxLength={10000} value={content[key]} onChange={e=>update({[key]:e.target.value})} required={key==='work'} /></label>)}</div></section>)}</div>
+   <section className="panel content-panel"><h3>Fotografier och bilagor</h3>{!locked&&<FilePicker label="Fotografier och dokument" files={files} disabled={saving} onChange={selected=>{setFiles(selected);props.onChanged(true)}}/>}</section>
   </fieldset>
   {!!content.files.length&&<div className="actions">{content.files.map(f=><button key={f.id} type="button" onClick={()=>void cloud.download(f).catch(e=>setMessage(String(e)))}>{f.name} ↓</button>)}</div>}
   {message&&<p role="status" className="notice">{message}</p>}
-  {!locked&&<div className="form-actions"><button type="button" disabled={saving} onClick={()=>void save(false)}>Spara utkast</button><button className="primary" type="submit" disabled={saving}>{saving?'Sparar…':'Spara dagboksrapport'}</button></div>}
+  {!locked&&<div className="form-actions diary-save"><span className="muted">Rapporten låses när den sparas och skickas.</span><button type="button" disabled={saving} onClick={()=>void save(false)}>Spara utkast</button><button className="primary" type="submit" disabled={saving}>{saving?'Sparar…':'Spara dagboksrapport'}</button></div>}
  </form>;
 }
