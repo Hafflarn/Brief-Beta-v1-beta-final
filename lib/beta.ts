@@ -1,3 +1,4 @@
+import type { DiaryReport, InboxItem } from "./building-diary";
 export type Role = "admin" | "supervisor" | "worker";
 export type Member = {
   id: string;
@@ -110,6 +111,7 @@ export type Order = {
   keysReceived?: boolean;
   keysReturned?: boolean;
   startedAt?: string;
+  buildingDiary?: boolean;
   controls?: Partial<Record<ControlKind, OrderControl>>;
   completedAt?: string;
   deletedAt?: string;
@@ -125,6 +127,8 @@ export type Snapshot = {
   companies: Company[];
   projects: Project[];
   orders: Order[];
+  diaryReports?: DiaryReport[];
+  inbox?: InboxItem[];
   contactLinks: { contact: string; company: string; authUser: string }[];
 };
 export type Command = { kind: string; [key: string]: unknown };

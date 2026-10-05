@@ -1,0 +1,45 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require('node:crypto');
+const {PGlite}=require('@electric-sql/pglite');
+test('Diary drafts are private, submissions immutable, headers trusted and inbox recipient isolated',async t=>{
+ const db=new PGlite();t.after(()=>db.close());
+ const stub=fs.readFileSync('tests/beta.test.cjs','utf8').match(/const stub = `([\s\S]*?)`;/)[1];await db.exec(stub);
+ for(const f of ['001_brief_v1_beta.sql','003_overview_and_person_names.sql','20261003142406_order_sections.sql','20261005175637_building_diary_and_inbox.sql'])await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
+ await db.exec(fs.readFileSync('supabase/migrations/20261005175637_building_diary_and_inbox.sql','utf8'));
+ const [w,other,admin,worker,colleague,outsider,company,project]=Array.from({length:8},()=>crypto.randomUUID());
+ await db.query('insert into bb_workspaces(id,name) values($1,$3),($2,$4)',[w,other,'Brief','Other']);
+ for(const [user,workspace,name,role] of [[admin,w,'Anna Andersson','admin'],[worker,w,'Erik Svensson','worker'],[colleague,w,'Sara Nilsson','worker'],[outsider,other,'Extern Person','admin']]){
+  await db.query('insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())',[user,user+'@test.se']);
+  await db.query('insert into bb_members(id,workspace,auth_user,email,name,role,employer,job) values($1,$2,$1,$3,$4,$5,$6,$7)',[user,workspace,user+'@test.se',name,role,'Brief','Snickare']);
+ }
+ await db.query('insert into bb_companies(id,workspace,name) values($1,$2,$3)',[company,w,'Beställare AB']);
+ await db.query('insert into bb_projects(id,workspace,customer,number,customer_number,name,address) values($1,$2,$3,$4,$5,$6,$7)',[project,w,company,'EGET-42','KUND-1','Större projekt','Storgatan 1, Sala']);
+ const as=async actor=>{await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[actor]);await db.exec('set role authenticated')};
+ const load=async()=> (await db.query('select brief_beta_load($1) as s',[w])).rows[0].s;
+ let revision=0;
+ const act=async c=>{const s=(await db.query('select brief_beta_apply($1,$2,$3) as s',[w,revision,JSON.stringify(c)])).rows[0].s;revision=s.revision;return s};
+ await as(admin);
+ let s=await act({kind:'create_order',project,number:'AO-1',title:'Byta kök',assignee:worker,buildingDiary:true});const order=s.orders[0].id;
+ assert.equal(s.orders[0].buildingDiary,true);
+ const report=crypto.randomUUID(),content={work:'Dagens arbete',weather:['Regn'],temperature:'5',personnel:[{trade:'Snickare',company:'Brief',count:2,hours:16}],files:[]};
+ const attachment={id:crypto.randomUUID(),name:'dagbok.txt',type:'text/plain'};attachment.path=[w,order,worker,attachment.id].join('/');await db.exec('reset role');await db.query("insert into storage.objects(bucket_id,name,owner_id,created_at) values('brief-beta-files',$1,$2,now()-interval '2 days')",[attachment.path,worker]);content.files=[attachment];
+ await as(worker);
+ s=await act({kind:'save_diary',id:order,report,date:'2026-10-05',content,submit:false,header:{author:'Fake',siteManager:'Fake'}});
+ assert.equal(s.diaryReports[0].header.author,'Erik Svensson');assert.equal(s.diaryReports[0].header.siteManager,'Anna Andersson');assert.equal(s.diaryReports[0].header.projectNumber,'EGET-42');assert.equal(s.inbox.length,0);
+ assert.equal((await db.query('select brief_beta_file_access($1) as ok',[attachment.path])).rows[0].ok,true);await db.exec('reset role');const cleanup=(await db.query('select brief_beta_cleanup() as files')).rows[0].files;assert(!cleanup.some(f=>f.path===attachment.path));
+ await as(admin);assert.equal((await load()).diaryReports.length,0);assert.equal((await db.query('select brief_beta_file_access($1) as ok',[attachment.path])).rows[0].ok,false);
+ await as(colleague);assert.equal((await load()).diaryReports.length,0);
+ await assert.rejects(()=>act({kind:'save_diary',id:order,report,date:'2026-10-05',content,submit:true}),/Du får inte skriva/);
+ await as(worker);
+ await assert.rejects(()=>act({kind:'save_diary',id:order,report,date:'2026-10-05',content:{...content,weather:['Fake']},submit:true}),/väder/);
+ s=await act({kind:'save_diary',id:order,report,date:'2026-10-05',content,submit:true});assert(s.diaryReports[0].submittedAt);assert.equal(s.inbox.length,0);
+ await assert.rejects(()=>act({kind:'save_diary',id:order,report,date:'2026-10-06',content,submit:true}),/Rapporten är låst/);
+ await as(admin);s=await load();assert.equal(s.diaryReports.length,1);assert.equal(s.inbox.length,1);assert.equal(s.inbox[0].kind,'diary');assert.equal((await db.query('select brief_beta_file_access($1) as ok',[attachment.path])).rows[0].ok,true);const item=s.inbox[0].id;
+ await as(worker);await assert.rejects(()=>act({kind:'read_inbox',id:item}),/inte tillgänglig/);
+ s=await act({kind:'set_status',id:order,status:'Avslutad'});assert.equal(s.inbox.length,0);
+ await as(admin);s=await load();assert.equal(s.inbox.length,2);assert(s.inbox.some(i=>i.kind==='completed'));
+ s=await act({kind:'read_inbox',id:item});assert(s.inbox.find(i=>i.id===item).readAt);
+ s=await act({kind:'set_status',id:order,status:'Påbörjad'});
+ s=await act({kind:'edit_order',id:order,project,number:'AO-1',title:'Byta kök',assignee:worker,buildingDiary:false});assert.equal(s.diaryReports.length,1);assert.equal(s.orders[0].buildingDiary,false);
+ await as(outsider);await assert.rejects(load,/aktiv profil|arbetsyta/);
+ await db.exec('reset role;set role anon');await assert.rejects(()=>db.query('select brief_beta_load($1)',[w]),/permission denied/);await assert.rejects(()=>db.query('select * from bb_inbox'),/permission denied/);
+});

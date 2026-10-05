@@ -1,6 +1,7 @@
 "use client";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import Login from "./login";
+import BuildingDiary from "./components/building-diary";
 import { printOrder } from "../lib/order-print";
 import Logo from "./components/logo";
 import ThemePicker from "./components/theme";
@@ -255,6 +256,7 @@ export default function Home() {
   const [filePhase, setFilePhase] = useState("Alla");
   const [files, setFiles] = useState<File[]>([]);
   const [pending, setPending] = useState<Attachment[]>([]);
+  const [requestedReport, setRequestedReport] = useState("");
   const [orderTab, setOrderTab] = useState("Översikt");
   const [closing, setClosing] = useState("");
   const [profile, setProfile] = useState<{
@@ -316,7 +318,7 @@ export default function Home() {
     };
   }, [directorySearch, s?.workspace, isDemo, route]);
   useEffect(() => {
-    setOrderTab("Översikt");
+    setOrderTab(requestedReport ? "Byggdagbok" : "Översikt");
   }, [route]);
   const me = s?.people.find((p) => p.id === s.user);
   const manager = me ? manages(me) : false;
@@ -410,6 +412,7 @@ export default function Home() {
   }, [route]);
   const go = (path: string, saved = false) => {
     if (navigate(path, saved)) {
+      setRequestedReport("");
       setDirty(false);
       setEditor(null);
     }
@@ -522,6 +525,7 @@ export default function Home() {
         />
       </>
     );
+  const inbox = (s.inbox || []).filter(i => !i.recipient || i.recipient === me.id);
   const orders = s.orders.filter((o) => visible(o, me, s.people));
   const people = s.people.filter((p) => !p.deleted);
   const memberName = (ident: string | null) =>
@@ -654,6 +658,7 @@ export default function Home() {
       c = {
         ...data,
         controls,
+        buildingDiary: data.buildingDiary === "on",
         kind: old ? "edit_order" : "create_order",
         id: old?.id,
       };
@@ -819,6 +824,7 @@ export default function Home() {
                   >
                     Min profil <span>›</span>
                   </button>
+                  <button onClick={() => {setAccountOpen(false);go("/inbox");}}>Inkorg <span>{inbox.filter(i => !i.readAt).length || "›"}</span></button>
                   {!me.external && (
                     <button
                       onClick={() => {
@@ -1365,6 +1371,7 @@ export default function Home() {
                   "Översikt",
                   "Dagbok",
                   "Bilagor",
+                  ...(currentOrder.buildingDiary || s.diaryReports?.some(r => r.order === currentOrder.id) ? ["Byggdagbok"] : []),
                   ...(hasControls(currentOrder) ? ["Kontroller"] : []),
                 ].map((t) => (
                   <button
@@ -1400,6 +1407,23 @@ export default function Home() {
                   </button>
                 ))}
               </div>
+              {orderTab === "Byggdagbok" && <BuildingDiary
+                key={currentOrder.id}
+                requestedReport={requestedReport}
+                order={currentOrder} me={me}
+                reports={(s.diaryReports || []).filter(r => r.order === currentOrder.id && (r.submittedAt || r.author === me.id))}
+                header={{project:nameOfProject(currentOrder)?.name || "",projectNumber:nameOfProject(currentOrder)?.number || "",orderNumber:currentOrder.number,customer:companyName(nameOfProject(currentOrder)?.customer || ""),address:currentOrder.address || nameOfProject(currentOrder)?.address || "",author:me.name,siteManager:memberName(currentOrder.issuedBy),siteManagerId:currentOrder.issuedBy}}
+                canEdit={canWrite(currentOrder,me) && !!currentOrder.buildingDiary && currentOrder.status !== "Avslutad"}
+                onDirty={setDirty}
+                onSave={async (report, date, content, uploadFiles, submit) => {
+                  let uploaded = content.files;
+                  if (uploadFiles.length) {
+                    if (isDemo) throw Error("Filuppladdning testas i en Supabase-arbetsyta.");
+                    uploaded = [...uploaded, ...await cloud.upload(s,currentOrder.id,uploadFiles)];
+                  }
+                  return act({kind:"save_diary",id:currentOrder.id,report,date,content:{...content,files:uploaded},submit});
+                }}
+              />}
               <div hidden={orderTab !== "Översikt"}>
                 <section className="panel detail-grid">
                   <div>
@@ -1983,6 +2007,21 @@ export default function Home() {
               <p>Den kan vara borttagen eller ligga utanför din behörighet.</p>
             </section>
           ))}
+        {route === "/inbox" && <>
+          <div className="page-heading"><h1>Inkorg</h1><button onClick={() => void refresh()} disabled={busy}>Uppdatera</button></div>
+          <p className="muted">Sparade byggdagböcker och avslutade arbetsorder som du har skapat.</p>
+          <section className="panel content-panel inbox-list">
+            {!inbox.length && <p className="empty">Din inkorg är tom.</p>}
+            {inbox.map(item => <article key={item.id} className={"inbox-item " + (!item.readAt ? "unread" : "")}>
+              <div><small>{item.kind === "diary" ? "Byggdagboksrapport" : "Avslutad arbetsorder"} · {date(item.at)}</small><h2>{item.title}</h2><p>{item.sender}{!item.readAt ? " · Oläst" : " · Läst"}</p></div>
+              <div className="actions"><button className="primary" onClick={() => {
+                if (!orders.some(o => o.id === item.order)) {setMessage("Ordern är inte längre tillgänglig.");return;}
+                go("/order/" + item.order); setOrderTab(item.kind === "diary" ? "Byggdagbok" : "Översikt");
+                setRequestedReport(item.report || "");
+              }}>Öppna</button>{!item.readAt && <button disabled={busy} onClick={() => void act({kind:"read_inbox",id:item.id})}>Markera som läst</button>}</div>
+            </article>)}
+          </section>
+        </>}
         {route === "/people" && !me.external && (
           <>
             <div className="page-heading">
@@ -2580,7 +2619,8 @@ export default function Home() {
                       ]
                     }
                   </p>
-                  <h3>Valbara kontroller</h3>
+                  <h3>Valbara avsnitt</h3>
+                  <label className="check-label"><input name="buildingDiary" type="checkbox" defaultChecked={(editor.value as Order)?.buildingDiary || false} />Byggdagbok (större projekt)</label>
                   {controlKinds.map((k) => (
                     <label className="check-label" key={k}>
                       <input

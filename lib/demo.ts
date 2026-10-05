@@ -1,3 +1,5 @@
+import { DiaryContent, DiaryReport } from "./building-diary";
+import { canWrite } from "./beta";
 import { configureControls } from "./order-controls";
 import { remainingSelfChecks, ControlKind } from "./beta";
 import { Snapshot, Command, visible, id, rank } from "./beta";
@@ -151,6 +153,8 @@ export function demo(): Snapshot {
     companies,
     projects,
     orders,
+    diaryReports:[],
+    inbox:[],
     contactLinks: [
       { contact: "anna-contact", company: "hallstahem", authUser: "anna" },
     ],
@@ -164,7 +168,23 @@ export function demoApply(input: Snapshot, c: Command): Snapshot {
     o.events.push({ id: id(), at: stamp, text: m.name + " " + text });
   const key = String(c.id || id());
   const o = s.orders.find((o) => o.id === key);
-  if (c.kind === "self_contact") {
+  if (c.kind === "read_inbox") {
+    const item=s.inbox?.find(i=>i.id===c.id && i.recipient===m.id);
+    if(!item)throw Error("Inkorgsposten är inte tillgänglig.");item.readAt=stamp;
+  } else if (c.kind === "save_diary") {
+    if(!o || !canWrite(o,m) || o.status==="Avslutad" || !o.buildingDiary)throw Error("Du får inte skriva rapport för denna order.");
+    const reports=s.diaryReports ||= [];
+    const reportId=String(c.report || id());
+    const prior=reports.find(r=>r.id===reportId);
+    if(prior && (prior.submittedAt || prior.author!==m.id || prior.order!==o.id))throw Error("Rapporten är låst eller tillhör en annan upprättare.");
+    const content=c.content as DiaryContent;
+    if(c.submit && !content.work.trim())throw Error("Beskriv dagens utförda arbeten.");
+    const project=s.projects.find(p=>p.id===o.project)!;
+    const report:DiaryReport={id:reportId,order:o.id,author:m.id,date:String(c.date),updatedAt:stamp,submittedAt:c.submit?stamp:undefined,
+      header:{project:project.name,projectNumber:project.number,orderNumber:o.number,customer:s.companies.find(p=>p.id===project.customer)?.name || "",address:o.address || project.address,author:m.name,siteManager:s.people.find(p=>p.id===o.issuedBy)?.name || "",siteManagerId:o.issuedBy},content};
+    if(prior)Object.assign(prior,report);else reports.unshift(report);
+    if(c.submit){(s.inbox ||= []).unshift({id:id(),recipient:o.issuedBy,order:o.id,report:reportId,kind:"diary",at:stamp,title:o.number+" · "+o.title,sender:m.name});event(o,"sparade en byggdagboksrapport.");}
+  } else if (c.kind === "self_contact") {
     m.phone = String(c.phone);
   } else if (c.kind === "invite_member") {
     s.people.push({
@@ -303,6 +323,7 @@ export function demoApply(input: Snapshot, c: Command): Snapshot {
     if (c.kind === "set_status") {
       if (o.status === "Avslutad" && m.role === "worker")
         throw Error("Du får inte återöppna.");
+      if(c.status === "Avslutad" && o.status !== "Avslutad") (s.inbox ||= []).unshift({id:id(),recipient:o.issuedBy,order:o.id,kind:"completed",at:stamp,title:o.number+" · "+o.title,sender:m.name});
       if (c.status === "Avslutad" && remainingSelfChecks(o) > 0)
         throw Error("Egenkontrollen måste vara utförd före avslut.");
       if (c.status === "Påbörjad" && !o.startedAt) o.startedAt = stamp;

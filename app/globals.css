@@ -1350,3 +1350,28 @@ button, input, select, textarea {border-radius:8px}
   .compact-orders th.overview-number {width:76px}
   .compact-orders th,.compact-orders td {padding-inline:6px}
 }
+
+/* Optional building diary and the order creator's inbox. */
+.diary-fields {display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+.diary-header label {font-size:12px;color:var(--muted)}
+.diary-header input[readonly] {background:var(--surface-soft);color:var(--ink)}
+.diary-reports {display:flex;gap:8px;overflow:auto;margin:0 0 20px;padding:3px}
+.diary-reports button {flex-shrink:0;text-align:left}
+.diary-reports small {display:block;color:inherit;margin-top:4px}
+.weather-options {display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.weather-options>label:last-child {max-width:180px}
+.diary-personnel {display:grid;grid-template-columns:1fr 1.6fr .6fr .7fr auto;gap:12px;align-items:end;margin-bottom:14px}
+.diary-personnel label {margin:0}
+.diary-personnel button {margin-bottom:0;min-height:44px}
+.diary-texts {display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+.diary-texts .diary-work,.diary-texts .diary-nextDay {grid-column:1/-1}
+.diary-texts label {margin:0;font-size:15px;font-weight:600}
+.diary-texts textarea {font-size:14px;font-weight:400}
+.inbox-item {display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 0;border-bottom:1px solid var(--border)}
+.inbox-item:last-child {border:0}
+.inbox-item.unread {border-left:3px solid var(--accent);padding-left:14px}
+.inbox-item h2 {font-size:16px;margin:6px 0}
+.inbox-item p {color:var(--muted);font-size:13px;margin:0}
+.order-tabs {overflow-x:auto}
+.order-tabs button {flex-shrink:0;white-space:nowrap;min-width:85px}
+@media(max-width:700px){.diary-fields,.diary-texts{grid-template-columns:1fr}.diary-personnel{grid-template-columns:1fr 1fr;padding-bottom:16px;border-bottom:1px solid var(--border)}.diary-personnel button{justify-self:end;grid-column:2}.inbox-item{align-items:flex-start;flex-direction:column}.building-diary .section-heading{flex-wrap:wrap}.diary-header input{font-size:14px}}
