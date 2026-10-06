@@ -34,6 +34,10 @@ export type Connection = {
   function: string;
 };
 export type Project = {
+  siteManager?: string;
+  verifier?: string;
+  diaryRead?: boolean;
+  diaryWrite?: boolean;
   id: string;
   number: string;
   customerNumber: string;

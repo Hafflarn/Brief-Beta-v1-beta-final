@@ -152,7 +152,8 @@ function Tips({ manager, route }: { manager: boolean; route: string }) {
   const [index, setIndex] = useState(0);
   const [hidden, setHidden] = useState(false);
   const tips = route.startsWith("/order/")
-    ? ["Dokumentera arbetet i dagboken och samla bilder under Bilagor.", "Egenkontroller behöver vara utförda före avslut.", "Slutkommentar är valfri."]
+    ? ["Projektets byggdagbok öppnas från projektet. Orderns kommentarer och bilagor finns kvar här.", "Egenkontroller behöver vara utförda före avslut.", "Slutkommentar är valfri."]
+    : route.startsWith("/project/") ? ["Spara utkast under dagen. Skicka dagrapporten när den är färdig.", "Inskickade rapporter låses och kan kvitteras av angivna mottagare."]
     : route === "/projects" ? ["Öppna projektets arbetsorder från projektkortet.", "Projektets anknytningar samlar kontakter och underentreprenörer."]
     : route === "/companies" ? ["Samla kontaktpersoner hos respektive företag.", "Arkiverade företag hittar du med Visa arkiverade."]
     : route === "/people" ? ["Sök på företag för att hitta dess personal.", "Öppna en person för att visa kontaktuppgifter."]
@@ -298,7 +299,7 @@ export default function Home() {
     };
   }, [directorySearch, s?.workspace, isDemo, route]);
   useEffect(() => {
-    setOrderTab(requestedReport ? "Byggdagbok" : "Översikt");
+    setOrderTab("Översikt");
   }, [route]);
   const me = s?.people.find((p) => p.id === s.user);
   const manager = me ? manages(me) : false;
@@ -517,6 +518,7 @@ export default function Home() {
   );
   const nameOfProject = (o: Order) =>
     s.projects.find((p) => p.id === o.project);
+  const currentProject = route.startsWith("/project/") ? s.projects.find(p => p.id === route.slice(9)) : undefined;
   const home = route === "/orders";
   const searching = route === "/search";
   const trash = route === "/trash";
@@ -687,6 +689,7 @@ export default function Home() {
     { path: "/orders", text: "Översikt" },
     { path: "/search", text: "Sök" },
     { path: "/inbox", text: "Inkorg" },
+    ...(!manager && s.projects.some(p=>p.diaryRead) ? [{path:"/projects",text:"Projekt"}] : []),
     ...(manager
       ? [
           { path: "/projects", text: "Projekt" },
@@ -1288,6 +1291,7 @@ export default function Home() {
                   Exportera PDF / skriv ut
                 </button>
               </div>
+                {(nameOfProject(currentOrder)?.diaryRead || s.diaryReports?.some(r=>r.order===currentOrder.id)) && <button onClick={() => go("/project/" + currentOrder.project)}>Projektets byggdagbok</button>}
                 {manager && orderLevelAllowed && !currentOrder.deletedAt && (
                   <div className="actions">
                     <button
@@ -1353,7 +1357,7 @@ export default function Home() {
                   "Översikt",
                   "Dagbok",
                   "Bilagor",
-                  ...(currentOrder.buildingDiary || s.diaryReports?.some(r => r.order === currentOrder.id) ? ["Byggdagbok"] : []),
+
                   ...(hasControls(currentOrder) ? ["Kontroller"] : []),
                 ].map((t) => (
                   <button
@@ -1389,23 +1393,6 @@ export default function Home() {
                   </button>
                 ))}
               </div>
-              {orderTab === "Byggdagbok" && <BuildingDiary
-                key={currentOrder.id}
-                requestedReport={requestedReport}
-                order={currentOrder} me={me}
-                reports={(s.diaryReports || []).filter(r => r.order === currentOrder.id && (r.submittedAt || r.author === me.id))}
-                header={{project:nameOfProject(currentOrder)?.name || "",projectNumber:nameOfProject(currentOrder)?.number || "",orderNumber:currentOrder.number,customer:companyName(nameOfProject(currentOrder)?.customer || ""),address:currentOrder.address || nameOfProject(currentOrder)?.address || "",author:me.name,siteManager:memberName(currentOrder.issuedBy),siteManagerId:currentOrder.issuedBy}}
-                canEdit={canWrite(currentOrder,me) && !!currentOrder.buildingDiary && currentOrder.status !== "Avslutad"}
-                onDirty={setDirty}
-                onSave={async (report, date, content, uploadFiles, submit) => {
-                  let uploaded = content.files;
-                  if (uploadFiles.length) {
-                    if (isDemo) throw Error("Filuppladdning testas i en Supabase-arbetsyta.");
-                    uploaded = [...uploaded, ...await cloud.upload(s,currentOrder.id,uploadFiles)];
-                  }
-                  return act({kind:"save_diary",id:currentOrder.id,report,date,content:{...content,files:uploaded},submit});
-                }}
-              />}
               <div hidden={orderTab !== "Översikt"}>
                 <section className="panel detail-grid">
                   <div><small>Adress</small><p>{currentOrder.address || nameOfProject(currentOrder)?.address || "—"}</p></div>
@@ -1953,8 +1940,8 @@ export default function Home() {
             {inbox.map(item => <article key={item.id} className={"inbox-item " + (!item.readAt ? "unread" : "")}>
               <div><small>{item.kind === "diary" ? "Byggdagboksrapport" : "Avslutad arbetsorder"} · {date(item.at)}</small><h2>{item.title}</h2><p>{item.sender}{!item.readAt ? " · Oläst" : " · Läst"}</p></div>
               <div className="actions"><button className="primary" onClick={() => {
-                if (!orders.some(o => o.id === item.order)) {setMessage("Ordern är inte längre tillgänglig.");return;}
-                go("/order/" + item.order); setOrderTab(item.kind === "diary" ? "Byggdagbok" : "Översikt");
+                if (item.kind === "diary" ? !s.projects.some(p => p.id === item.project) : !orders.some(o => o.id === item.order)) {setMessage("Rapportens projekt eller arbetsorder är inte längre tillgänglig.");return;}
+                if (item.kind === "diary" && item.project) go("/project/" + item.project); else if (item.order) { go("/order/" + item.order); setOrderTab("Översikt"); }
                 setRequestedReport(item.report || "");
               }}>Öppna</button>{!item.readAt && <button disabled={busy} onClick={() => void act({kind:"read_inbox",id:item.id})}>Markera som läst</button>}</div>
             </article>)}
@@ -2127,6 +2114,22 @@ export default function Home() {
             </form>
           </section>
         )}
+        {route === "/projects" && !manager && <><h1>Projekt</h1><p className="muted">Projekt där du har tillgång till byggdagboken.</p>{s.projects.filter(p=>p.diaryRead || s.diaryReports?.some(r=>r.project===p.id)).map(p=><section className="panel content-panel" key={p.id}><h2>{p.name}</h2><p>{p.number} · {p.address}</p><button className="primary" onClick={()=>go("/project/"+p.id)}>Öppna byggdagbok</button></section>)}</>}
+        {route.startsWith("/project/") && (currentProject && (manager || currentProject.diaryRead || s.diaryReports?.some(r=>r.project===currentProject.id)) ? <>
+          <button className="back" onClick={() => go(manager ? "/projects" : "/orders")}>← Till {manager ? "projekt" : "översikt"}</button>
+          <div className="page-heading"><div><p className="eyebrow">Projekt · {currentProject.number}</p><h1>{currentProject.name}</h1><p className="muted">{companyName(currentProject.customer)} · {currentProject.address}{currentProject.archived ? " · Arkiverat" : ""}</p></div>{manager && <button onClick={() => edit("project",currentProject)}>Redigera projekt</button>}</div>
+          {!currentProject.siteManager && <p className="notice">Ange ansvarig platschef under Redigera projekt för att kunna skicka dagrapporter.</p>}
+          <BuildingDiary key={currentProject.id + (requestedReport || "")} project={currentProject} me={me} requestedReport={requestedReport}
+            reports={(s.diaryReports || []).filter(r => r.project === currentProject.id || (!r.project && s.orders.some(o => o.id === r.order && o.project === currentProject.id)))}
+            header={{project:currentProject.name,projectNumber:currentProject.number,customerNumber:currentProject.customerNumber,orderNumber:"",customer:companyName(currentProject.customer),address:currentProject.address,author:me.name,siteManager:memberName(currentProject.siteManager || null),siteManagerId:currentProject.siteManager || "",verifier:currentProject.verifier ? memberName(currentProject.verifier) : "",verifierId:currentProject.verifier}}
+            canEdit={!currentProject.archived && !!currentProject.siteManager && (isDemo ? manager || s.orders.some(o => o.project === currentProject.id && canWrite(o,me) && o.status !== "Avslutad") : !!currentProject.diaryWrite)}
+            onDirty={setDirty} onAck={(report,ack) => act({kind:"ack_project_diary",id:currentProject.id,report,ack})}
+            onSave={async(report,date,content,uploadFiles,submit)=>{
+              if(uploadFiles.length && isDemo) throw Error("Filuppladdning testas i en Supabase-arbetsyta.");
+              const files = uploadFiles.length ? [...content.files,...await cloud.upload(s,currentProject.id,uploadFiles)] : content.files;
+              return act({kind:"save_project_diary",id:currentProject.id,report,date,content:{...content,files},submit});
+            }} />
+        </> : <p className="empty">Projektets byggdagbok är inte tillgänglig för din profil.</p>)}
         {(route === "/companies" || route === "/projects") && manager && (
           <>
             <div className="page-heading">
@@ -2303,6 +2306,7 @@ export default function Home() {
                                   );
                                 })}
                                 <div className="actions">
+                                  <button className="primary" onClick={() => go("/project/" + p.id)}>Öppna projektets byggdagbok</button>
                                   <button
                                     onClick={() => {
                                       setQuery(p.number);
@@ -2532,7 +2536,7 @@ export default function Home() {
                     }
                   </p>
                   <h3>Valbara avsnitt</h3>
-                  <label className="check-label"><input name="buildingDiary" type="checkbox" defaultChecked={(editor.value as Order)?.buildingDiary || false} />Byggdagbok (större projekt)</label>
+
                   {controlKinds.map((k) => (
                     <label className="check-label" key={k}>
                       <input
@@ -2801,6 +2805,8 @@ export default function Home() {
                     fields={(() => {
                       const p = editor.value as Project | undefined;
                       return [
+                        { key:"siteManager",label:"Ansvarig platschef",value:p?.siteManager || me.id,required:true,options:people.filter(member => member.active && !member.external && member.role !== "worker").map(member => ({value:member.id,label:member.name})) },
+                        { key:"verifier",label:"Beställare/kontrollant för kvittens (valfritt)",value:p?.verifier || "",options:people.filter(member => member.active).map(member => ({value:member.id,label:member.name})) },
                         {
                           key: "customer",
                           label: "Beställare",

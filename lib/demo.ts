@@ -151,7 +151,7 @@ export function demo(): Snapshot {
     revision: 0,
     people,
     companies,
-    projects,
+    projects:projects.map(p=>({...p,siteManager:"samuel",diaryRead:true,diaryWrite:true})),
     orders,
     diaryReports:[],
     inbox:[],
@@ -171,6 +171,20 @@ export function demoApply(input: Snapshot, c: Command): Snapshot {
   if (c.kind === "read_inbox") {
     const item=s.inbox?.find(i=>i.id===c.id && i.recipient===m.id);
     if(!item)throw Error("Inkorgsposten är inte tillgänglig.");item.readAt=stamp;
+  } else if (c.kind === "save_project_diary") {
+    const project=s.projects.find(p=>p.id===c.id);
+    if(!project || project.archived || m.external || !(m.role!=="worker" || s.orders.some(o=>o.project===project.id && canWrite(o,m) && o.status!=="Avslutad")))throw Error("Du får inte skriva rapport för detta projekt.");
+    const reports=s.diaryReports ||= [],reportId=String(c.report || id()),prior=reports.find(r=>r.id===reportId);
+    if(prior && (prior.submittedAt || prior.author!==m.id || prior.project!==project.id))throw Error("Rapporten är låst eller tillhör en annan upprättare.");
+    const content=c.content as DiaryContent;
+    if(c.submit && ![content.work,content.ongoing,content.completed].some(v=>v?.trim()))throw Error("Beskriv pågående eller färdigställda arbeten.");
+    const report:DiaryReport={id:reportId,project:project.id,number:prior?.number || Math.max(0,...reports.filter(r=>r.project===project.id).map(r=>r.number || 0))+1,author:m.id,date:String(c.date),updatedAt:stamp,submittedAt:c.submit?stamp:undefined,header:prior?.header || {project:project.name,projectNumber:project.number,customerNumber:project.customerNumber,orderNumber:"",customer:s.companies.find(c=>c.id===project.customer)?.name || "",address:project.address,author:m.name,siteManager:s.people.find(p=>p.id===project.siteManager)?.name || "",siteManagerId:project.siteManager || m.id,verifier:s.people.find(p=>p.id===project.verifier)?.name,verifierId:project.verifier},content};
+    if(prior)Object.assign(prior,report);else reports.unshift(report);
+    if(c.submit)(s.inbox ||= []).unshift({id:id(),recipient:report.header.siteManagerId,project:project.id,report:reportId,kind:"diary",at:stamp,title:project.name+" · Dagrapport "+report.number,sender:m.name});
+  } else if(c.kind === "ack_project_diary") {
+    const report=s.diaryReports?.find(r=>r.id===c.report && r.project===c.id),ack=String(c.ack);
+    if(!report?.submittedAt || (ack==="siteManager"?report.header.siteManagerId:report.header.verifierId)!==m.id)throw Error("Endast angiven mottagare får kvittera.");
+    (report.acknowledgements ||= {})[ack]={member:m.id,name:m.name,at:stamp};
   } else if (c.kind === "save_diary") {
     if(!o || !canWrite(o,m) || o.status==="Avslutad" || !o.buildingDiary)throw Error("Du får inte skriva rapport för denna order.");
     const reports=s.diaryReports ||= [];
