@@ -205,6 +205,7 @@ export function demoApply(input: Snapshot, c: Command): Snapshot {
       id: id(),
       name: String(c.name),
       role: c.role as typeof m.role,
+      organizationLevel: c.organizationLevel === "client" ? "client" : "management",
       job: String(c.job),
       employer: String(c.employer),
       phone: String(c.phone),

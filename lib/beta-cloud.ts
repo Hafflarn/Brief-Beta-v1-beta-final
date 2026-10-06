@@ -86,6 +86,12 @@ export async function contactProfile(
 }
 
 export type DirectoryPerson = { id: string; name: string; job: string; employer: string };
+export type OrganizationPerson = { id: string; name: string; role: string; organizationLevel?: string; job: string; employer: string; phone: string; email: string };
+export async function companyOrganization(workspace: string, company: string): Promise<OrganizationPerson[]> {
+  const { data, error } = await client().rpc("brief_beta_company_organization", { workspace_id: workspace, company_id: company });
+  if (error) throw Error(error.message);
+  return data;
+}
 export async function searchDirectory(workspace: string, query: string): Promise<DirectoryPerson[]> {
   const { data, error } = await client().rpc("brief_beta_search_directory", { workspace_id: workspace, company_query: query });
   if (error) throw Error(error.message);

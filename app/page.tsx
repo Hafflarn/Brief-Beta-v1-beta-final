@@ -2,6 +2,7 @@
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import Login from "./login";
 import BuildingDiary from "./components/building-diary";
+import CompanyOrganization from "./components/company-organization";
 import FilePicker from "./components/file-picker";
 import { printOrder } from "../lib/order-print";
 import Logo from "./components/logo";
@@ -242,6 +243,7 @@ export default function Home() {
   const [closing, setClosing] = useState("");
   const [profile, setProfile] = useState<{
     name: string;
+    role?: string;
     job: string;
     employer: string;
     phone: string;
@@ -2238,19 +2240,7 @@ export default function Home() {
                             </div>
                           </div>
                           <p className="muted">{company.kind}</p>
-                          <h3>Kontaktpersoner</h3>
-                          <div className="contact-grid">
-                            {company.contacts.map((ct) => (
-                              <div key={ct.id}>
-                                {contactName(company, ct)}
-                                <p>
-                                  <a href={"mailto:" + ct.email}>{ct.email}</a>
-                                  <br />
-                                  <a href={"tel:" + ct.phone}>{ct.phone}</a>
-                                </p>
-                              </div>
-                            ))}
-                          </div>
+                          <CompanyOrganization company={company} people={people} workspace={s.workspace} revision={s.revision} demo={isDemo} onPerson={setProfile} />
                         </section>
                       )}
                       {route === "/projects" && (
@@ -2406,12 +2396,10 @@ export default function Home() {
           <p>
             {profile.job} · {profile.employer}
           </p>
-          <p>
-            <a href={"tel:" + profile.phone}>{profile.phone}</a>
-          </p>
-          <p>
-            <a href={"mailto:" + profile.email}>{profile.email}</a>
-          </p>
+          {profile.role && <p>{profile.role === "site_manager_client" ? "Platschef" : roles[profile.role as keyof typeof roles] || "Beställare"}</p>}
+          <h3>Kontaktuppgifter</h3>
+          <p>Telefon: {profile.phone ? <a href={"tel:" + profile.phone}>{profile.phone}</a> : "Ej angivet"}</p>
+          <p>E-post: {profile.email ? <a href={"mailto:" + profile.email}>{profile.email}</a> : "Ej angiven"}</p>
           <p className="muted">
             Kontaktkopplingen ger ingen åtkomst till personens arbetsorder.
           </p>
@@ -2628,9 +2616,15 @@ export default function Home() {
                                 label: "Roll",
                                 value: "worker",
                                 required: true,
-                                options: (["supervisor", "worker"] as const)
+                                options: (["site_manager", "supervisor", "worker"] as const)
                                   .filter((r) => rank(r) > rank(me.role))
                                   .map((r) => ({ value: r, label: roles[r] })),
+                              },
+                              {
+                                key: "organizationLevel",
+                                label: "Placering i organisationsschemat (för Platschef)",
+                                value: "management",
+                                options: [{value:"management",label:"Platschef / Arbetsledare"},{value:"client",label:"Beställare / Platschef"}],
                               },
                             ]
                           : []),
@@ -2773,6 +2767,17 @@ export default function Home() {
                           />
                         </label>
                       ))}
+                      <label>
+                        Funktion i organisationsschemat
+                        <select value={ct.organizationRole || "client"} disabled={!!(editor.value as Company | undefined)?.contacts.some(c => c.id === ct.id)} onChange={e => {setContacts(contacts.map((c,j) => j === i ? {...c, organizationRole:e.target.value as Contact["organizationRole"]} : c));setDirty(true);}}>
+                          <option value="client">Beställare</option>
+                          <option value="site_manager_client">Platschef · beställarnivå</option>
+                          <option value="site_manager">Platschef · arbetsledning</option>
+                          <option value="supervisor">Arbetsledare</option>
+                          <option value="worker">Arbetare</option>
+                        </select>
+                        <small className="muted">Väljs när kontakten läggs till. För kopplade Brief-profiler visas den registrerade rollen.</small>
+                      </label>
                       <button
                         type="button"
                         disabled={contacts.length === 1}

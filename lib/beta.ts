@@ -1,9 +1,10 @@
 import type { DiaryReport, InboxItem } from "./building-diary";
-export type Role = "admin" | "supervisor" | "worker";
+export type Role = "admin" | "site_manager" | "supervisor" | "worker";
 export type Member = {
   id: string;
   name: string;
   role: Role;
+  organizationLevel?: "client" | "management";
   job: string;
   employer: string;
   phone: string;
@@ -18,6 +19,7 @@ export type Contact = {
   name: string;
   phone: string;
   email: string;
+  organizationRole?: "client" | "site_manager_client" | "site_manager" | "supervisor" | "worker";
 };
 export type Company = {
   id: string;
@@ -138,11 +140,12 @@ export type Snapshot = {
 export type Command = { kind: string; [key: string]: unknown };
 export const roles: Record<Role, string> = {
   admin: "Admin",
+  site_manager: "Platschef",
   supervisor: "Arbetsledare",
-  worker: "Utförare",
+  worker: "Arbetare",
 };
 export const rank = (role: Role) =>
-  ({ admin: 1, supervisor: 2, worker: 3 })[role];
+  ({ admin: 1, site_manager: 2, supervisor: 2, worker: 3 })[role];
 export const manages = (m: Member) => !m.external && rank(m.role) < 3;
 export const joined = (o: Order, m: Member) =>
   o.assignee === m.id ||
