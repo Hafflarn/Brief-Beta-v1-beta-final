@@ -97,3 +97,18 @@ export async function searchDirectory(workspace: string, query: string): Promise
   if (error) throw Error(error.message);
   return data;
 }
+
+async function accountRequest(path: string, body: unknown) {
+ const {data:{session}}=await client().auth.getSession();
+ if(!session)throw Error('Logga in först.');
+ const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify(body)});
+ const result=await response.json().catch(()=>({error:'Servern kunde inte behandla uppgifterna. Försök igen.'}));if(!response.ok)throw Error(result.error||'Ändringen misslyckades.');return result;
+}
+export const createAccount=(workspace:string,revision:number,details:Command)=>accountRequest('/api/accounts',{workspace,revision,details});
+export const changePassword=(password:string)=>accountRequest('/api/password',{password});
+export async function dismissPasswordSuggestion(){const {error}=await client().rpc('brief_beta_password_suggestion_dismiss');if(error)throw Error(error.message);}
+export type Firm = {id:string;name:string;own:boolean;shared:boolean;people:OrganizationPerson[]};
+export type FirmRequest = {id:string;sender:string;recipient:string;senderName:string;recipientName:string;role:string;state:'pending'|'accepted'|'declined'|'revoked';incoming:boolean;canRespond:boolean;at:string};
+export type FirmDirectory = {firms:Firm[];requests:FirmRequest[]};
+export async function firmDirectory(workspace:string):Promise<FirmDirectory>{const {data,error}=await client().rpc('brief_beta_firm_directory',{workspace_id:workspace});if(error)throw Error(error.message);return data;}
+export async function firmRequest(workspace:string,target:string,action:string):Promise<FirmDirectory>{const {data,error}=await client().rpc('brief_beta_firm_request',{workspace_id:workspace,target,action});if(error)throw Error(error.message);return data;}

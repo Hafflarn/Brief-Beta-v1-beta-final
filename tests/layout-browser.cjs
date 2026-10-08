@@ -10,7 +10,7 @@ const server=require('node:child_process').spawn(process.execPath,['node_modules
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(process.env.BRIEF_TEST_URL || 'http://127.0.0.1:3005');
   await page.getByText('Logga in till din arbetsyta.',{exact:true}).waitFor();
-  await page.getByLabel('Tema',{exact:true}).selectOption('dark');
+  await page.getByRole('button',{name:'Byt till mörkt tema',exact:true}).click();
   fs.mkdirSync('docs/screenshots',{recursive:true});
   await page.screenshot({path:'docs/screenshots/layout-login.png',fullPage:true});
   await page.getByRole('button',{name:'Öppna demonstration'}).click();
@@ -22,7 +22,7 @@ const server=require('node:child_process').spawn(process.execPath,['node_modules
    await page.getByRole('button',{name:'Öppna kontomeny'}).click();
    assert.equal(await page.getByRole('region',{name:'Mitt företag'}).count(),allowed?1:0);
    assert.equal(await page.locator('.account-dropdown').getByRole('button',{name:/Min profil/}).count(),1);
-   assert.equal(await page.locator('.account-dropdown').getByRole('button',{name:/Personal/}).count(),1);
+   assert.equal(await page.locator('.account-dropdown').getByRole('button',{name:/Mina kollegor/}).count(),1);
    if(allowed) assert.equal(await page.locator('.account-colleagues button').count(),3);
    await page.getByRole('button',{name:'Stäng kontomeny'}).click({position:{x:2,y:2}});
   }
@@ -45,7 +45,7 @@ const server=require('node:child_process').spawn(process.execPath,['node_modules
    const box=await page.locator('.account-dropdown').boundingBox();assert(box.x>=0 && box.x+box.width<=width);
    await page.getByRole('button',{name:'Stäng kontomeny'}).click({position:{x:2,y:2}});
   }
-  await page.getByLabel('Tema',{exact:true}).selectOption('light');
+  await page.getByRole('button',{name:'Byt till ljust tema',exact:true}).click();
   await page.screenshot({path:'docs/screenshots/layout-mobile-light.png',fullPage:true});
   assert.deepEqual(errors,[]);console.log('PASS: roles, colleague navigation, desktop columns, mobile columns and performers, 320–700px overflow, light/dark, no browser errors');
  } finally {await browser.close();server.kill();}

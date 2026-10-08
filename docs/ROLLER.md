@@ -1,25 +1,13 @@
-# Brief v1 Beta – roller för kunder
+# Roller, konton och företagsåtkomst
 
-Yrkesroll beskriver vad personen arbetar med, till exempel snickare eller elektriker. Systemrollen beskriver vad personen får göra i Brief. Systemrollen visas i profilen under Personal, inte på arbetsorder.
+Admin, Platschef och Arbetsledare kan skapa konton i sitt eget företag, med namn, yrkesroll, telefon, e-post, låst systemroll och tilldelat lösenord. Admin kan tilldela alla systemroller; Platschef och Arbetsledare kan tilldela sin egen behörighetsnivå eller Arbetare. Befintliga regler för redigering av lägre rollers profiler behålls.
 
-## Admin
+Platschef och Arbetsledare har samma behörighetsnivå. Platschef kan visas på antingen beställarnivån eller arbetsledningsnivån i organisationsschemat. Denna placering ändrar inte behörigheten.
 
-Ser alla arbetsorder i arbetsytan. Skapar och redigerar order, tilldelar alla rollnivåer och kan själv vara utförare. Kan återöppna avslutade order, återställa från papperskorgen och radera permanent. Hanterar företagsbank, projekt samt arbetsledares och utförares profiler. Ändrar inte andra Admin-profiler. Den egna telefonen och e-postadressen kan uppdateras.
+Arbetsordrar tillhör ett fast företags-ID, hämtat från upprättaren. Alla läs-, skriv- och bilagevägar kontrollerar detta ID. Samma företag kan läsa företagets aktiva ordrar enligt befintliga rollregler; för skrivning krävs arbetsledning, tilldelning eller godkänt deltagande. Andra företags konton får ingen åtkomst, även efter en godkänd företagsförfrågan. Utförare och deltagare måste tillhöra orderns företag.
 
-## Arbetsledare
+Användaren erbjuds lösenordsbyte vid första inloggningen. Byt senare avslutar första-inloggningspåminnelsen; Byt lösenord finns alltid under Ändra din profil. Lösenord uppdateras med användarens egen verifierade session. Öppen registrering saknas både i gränssnittet och i Auths skapandeflöde. Konton skapas av servern efter verifierad chefsbehörighet, med skyddad app_metadata. Om medlemsprofilen inte kan sparas återtas det nyss skapade Auth-kontot.
 
-Ser order tilldelade arbetsledare och utförare, men inte Admin. Skapar, redigerar och tilldelar order till egen rollnivå eller lägre, inklusive sig själv. Kan återöppna och återställa tillgängliga order men inte radera permanent. Hanterar företagsbank, projekt och utförares profiler. Ändrar inte arbetsledares eller Admins profiler.
+Mina kollegor visar endast det egna företagets profiler. Företag i Brief visar registrerade företags namn. Admin, Platschef och Arbetsledare kan begära ömsesidig kontaktåtkomst; en aktiv mottagare med samma systemroll måste svara. Båda parter informeras om att anställdas namn, telefon och e-post blir synliga. Godkännande ger kontaktåtkomst i båda riktningarna. Endera företaget kan avsluta åtkomsten. Detta ger aldrig åtkomst till arbetsordrar eller projektdagböcker.
 
-## Utförare
-
-Interna utförare kan söka fram och läsa order tilldelade utförare. De kan uppdatera genom status, kommentarer och bilagor när de är tilldelade eller har anslutit med Anslut mig. De kan avsluta med eller utan slutkommentar men inte återöppna. Order tilldelade högre roller är dolda. Grunduppgifter och tilldelning ändras av Admin/arbetsledare.
-
-## Externa deltagare
-
-En extern person får bara tillgång till order som tilldelats personen eller som Admin/arbetsledare bjudit in personen till. En extern deltagare behöver acceptera inbjudan med Anslut mig för att uppdatera. Övriga order och företagsbanken är inte tillgängliga. Externa deltagare bjuder inte in andra externa personer.
-
-## Profil och registrering
-
-Vid registrering anges namn, yrkesroll, företag, telefon och e-post. Användaren kan sedan ändra telefon och e-post; e-postbyte kräver bekräftelse. Övriga uppgifter rättas av en högre behörig roll. Systemrollen är låst: en annan systemroll kräver ny profil.
-
-Inaktivering stoppar åtkomst men behåller historik. Vid borttagning eller inaktivering återgår aktiva order till orderskaparen. Finns ingen aktiv orderskapare markeras ordern Behöver tilldelas. Borttagning av en profil gäller dess deltagande i den aktuella arbetsytan, inte automatiskt personens andra företags konton.
+Företags-ID används för behörigheter; det skrivna företagsnamnet används endast för visning. Befintliga profiler får företagskoppling vid migreringen. Organisationsschemat visar registrerade namn, roller och kontaktuppgifter utan rollreglage.
