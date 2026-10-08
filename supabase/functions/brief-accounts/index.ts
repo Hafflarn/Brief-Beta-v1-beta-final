@@ -1,8 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
-export const runtime='nodejs';
+import { createClient } from 'npm:@supabase/supabase-js@2.117.2';
 export async function POST(request:Request){
- const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,secret=process.env.SUPABASE_SERVICE_ROLE_KEY;
- if(!url||!key)return Response.json({error:'Kontohanteringen är inte konfigurerad.'},{status:503});
+ const url=Deno.env.get('SUPABASE_URL'),key=Deno.env.get('SUPABASE_ANON_KEY'),secret=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+ if(!url||!key||!secret)return Response.json({error:'Kontohanteringen är inte konfigurerad.'},{status:503});
  const token=request.headers.get('authorization')?.replace(/^Bearer /,'');
  if(!token)return Response.json({error:'Logga in först.'},{status:401});
  const options={auth:{persistSession:false,autoRefreshToken:false}};
@@ -18,13 +17,6 @@ export async function POST(request:Request){
  if(contextError)return Response.json({error:contextError.message},{status:403});
  const rank:Record<string,number>={admin:1,site_manager:2,supervisor:2,worker:3};
  if(!rank[details.role]||(context.role!=='admin'&&rank[details.role]<rank[context.role]))return Response.json({error:'Du får inte tilldela den rollen.'},{status:403});
- if(!secret){
-  try{
-   const response=await fetch(`${url}/functions/v1/brief-accounts`,{method:'POST',headers:{Authorization:`Bearer ${token}`,apikey:key,'Content-Type':'application/json'},body:JSON.stringify(input)});
-   const result=await response.json();
-   return Response.json(result,{status:response.status});
-  }catch{return Response.json({error:'Kontot kunde inte skapas. Försök igen.'},{status:503});}
- }
  const server=createClient(url,secret,options);
  const {data:created,error:createError}=await server.auth.admin.createUser({email:details.email.trim().toLowerCase(),password:details.password,email_confirm:true,user_metadata:{full_name:details.name.trim(),job_title:details.job.trim(),company_name:context.employer,phone:details.phone.trim()},app_metadata:{brief_provisioned:true,brief_password_suggested:true}});
  if(createError||!created.user)return Response.json({error:'Kontot kunde inte skapas. Kontrollera om e-postadressen redan har ett konto.'},{status:400});
@@ -32,3 +24,8 @@ export async function POST(request:Request){
  if(profileError){const {error:cleanupError}=await server.auth.admin.deleteUser(created.user.id);if(cleanupError)console.error('Provisioning rollback failed for account',created.user.id);return Response.json({error:profileError.message},{status:409});}
  return Response.json({ok:true});
 }
+
+Deno.serve(async(request:Request)=>{
+ if(request.method!=='POST')return Response.json({error:'Metoden stöds inte.'},{status:405});
+ try{return await POST(request);}catch{return Response.json({error:'Kontot kunde inte skapas. Försök igen.'},{status:503});}
+});
