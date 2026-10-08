@@ -4,6 +4,7 @@ import { configurationError, supabase } from "../lib/supabase";
 import { withTimeout } from "../lib/network";
 import Logo from "./components/logo";
 import ThemePicker from "./components/theme";
+import { validateForm } from "../lib/form-validation";
 export default function Login({
   onReady,
   onDemo,
@@ -11,7 +12,7 @@ export default function Login({
   onReady: () => Promise<void>;
   onDemo: () => void;
 }) {
-  const [mode, setMode] = useState<"login" | "signup" | "complete" | "reset">(
+  const [mode, setMode] = useState<"login" | "complete" | "reset">(
     "login",
   );
   const [busy, setBusy] = useState(false);
@@ -21,6 +22,7 @@ export default function Login({
   const lock = useRef(false);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!validateForm(e.currentTarget,setMessage)) return;
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
@@ -35,8 +37,8 @@ export default function Login({
       phone: f.get("phone"),
     };
     try {
-      if ((mode === "signup" || mode === "complete") && (!String(f.get("firstName") || "").trim() || !String(f.get("lastName") || "").trim())) throw Error("Ange både förnamn och efternamn.");
-      if ((mode === "signup" || mode === "complete") && metadata.full_name.length > 150) throw Error("För- och efternamn får tillsammans vara högst 150 tecken.");
+      if ((mode === "complete") && (!String(f.get("firstName") || "").trim() || !String(f.get("lastName") || "").trim())) throw Error("Ange både förnamn och efternamn.");
+      if ((mode === "complete") && metadata.full_name.length > 150) throw Error("För- och efternamn får tillsammans vara högst 150 tecken.");
       if (!supabase) throw Error(configurationError);
       if (mode === "reset") {
         const { error } = await withTimeout(
@@ -46,23 +48,7 @@ export default function Login({
         await onReady();
         return;
       }
-      if (mode === "signup") {
-        const { data, error } = await withTimeout(
-          supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              data: metadata,
-              emailRedirectTo: window.location.origin,
-            },
-          }),
-        );
-        if (error) throw error;
-        if (!data.session) {
-          setMessage("Kontrollera din e-post och bekräfta kontot.");
-          return;
-        }
-      } else if (mode === "complete") {
+      if (mode === "complete") {
         const { error } = await withTimeout(
           supabase.auth.updateUser({ data: metadata }),
         );
@@ -111,22 +97,18 @@ export default function Login({
       </div>
       <section className="login-card" aria-busy={busy}>
         {mode !== "login" && <h1>
-          {mode === "signup"
-              ? "Skapa ditt konto"
-              : mode === "complete"
+          {mode === "complete"
                 ? "Komplettera din profil"
                 : "Nytt lösenord"}
         </h1>}
         <p className="muted login-intro">
           {mode === "login"
             ? "Logga in till din arbetsyta."
-            : mode === "signup"
-              ? "Har du en inbjudan? Använd samma e-postadress."
-              : "Fyll i dina uppgifter för att fortsätta."}
+            : "Fyll i dina uppgifter för att fortsätta."}
         </p>
-        <form onSubmit={submit}>
+        <form noValidate onSubmit={submit}>
           <fieldset disabled={busy}>
-            {(mode === "signup" || mode === "complete") && (
+            {(mode === "complete") && (
               <>
                 <label>
                   Förnamn
@@ -211,29 +193,13 @@ export default function Login({
                   ? "Kontrollerar…"
                   : mode === "login"
                     ? "Logga in"
-                    : mode === "signup"
-                      ? "Registrera dig"
-                      : "Spara och fortsätt"}
+                    : "Spara och fortsätt"}
             </button>
           </fieldset>
         </form>
         <p className="login-message" role="status">
           {message || (success ? "Inloggningen lyckades." : "")}
         </p>
-        {(mode === "login" || mode === "signup") && (
-          <button
-            className="text-button"
-            disabled={busy}
-            onClick={() => {
-              setMode(mode === "login" ? "signup" : "login");
-              setMessage("");
-            }}
-          >
-            {mode === "login"
-              ? "Nytt konto? Registrera dig"
-              : "Har du ett konto? Logga in"}
-          </button>
-        )}
         {mode === "login" && (
           <button
             className="text-button"

@@ -28,6 +28,7 @@ export default function CompanyOrganization({ company, people, workspace, revisi
     if (!local.some(p => p.id === person.id)) local.push(person);
   }
   const persons = demo ? local : loaded?.company === company.id ? loaded.people : null;
+  if (company.contactAccess === false) return <section className="organization-chart"><div className="organization-company">{company.name}</div><p className="muted">Kontaktuppgifter visas efter att båda företagen har godkänt en företagsförfrågan.</p></section>;
   return <section className="organization-chart" aria-label={"Organisationsschema för " + company.name}>
     <h3>Organisationsschema</h3>
     <p className="muted">Klicka på en person för e-post och telefon.</p>

@@ -1589,3 +1589,8 @@ button, input, select, textarea {border-radius:8px}
 .organization-person strong,.organization-person small {display:block}.organization-person small {color:var(--muted);margin-top:.2rem}.organization-person:hover {border-color:var(--accent,#087d7b)}
 .organization-empty {text-align:center;font-size:.85rem;color:var(--muted);margin:.5rem}
 @media(max-width:600px){.organization-person {flex-basis:100%;min-width:0}.organization-company{max-width:100%}}
+.theme-toggle{display:grid;place-items:center;width:42px;height:42px;padding:0;border-radius:50%;color:var(--ink);background:transparent}
+[aria-invalid="true"]{border-color:#bc3434!important;outline-color:#bc3434}
+.firm-sharing{margin-bottom:20px}.firm-list{max-height:300px;overflow:auto}.firm-request{padding:16px 0;border-top:1px solid var(--border)}.contact-card{padding:18px;border:1px solid var(--border);border-radius:10px}.contact-card>button{float:right}.organization-person{flex-wrap:wrap}
+@media(max-width:480px){.page-heading{flex-wrap:wrap}.page-heading>.actions{width:100%;margin-left:0}.page-heading>.actions>.primary{max-width:100%}.firm-list .person-row{align-items:flex-start}.firm-list .person-row>strong{overflow-wrap:anywhere}.firm-request strong{overflow-wrap:anywhere}}
+.tips p{white-space:normal;overflow-wrap:anywhere}

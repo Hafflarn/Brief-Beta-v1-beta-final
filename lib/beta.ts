@@ -1,6 +1,7 @@
 import type { DiaryReport, InboxItem } from "./building-diary";
 export type Role = "admin" | "site_manager" | "supervisor" | "worker";
 export type Member = {
+  firm?: string;
   id: string;
   name: string;
   role: Role;
@@ -22,6 +23,8 @@ export type Contact = {
   organizationRole?: "client" | "site_manager_client" | "site_manager" | "supervisor" | "worker";
 };
 export type Company = {
+  linkedFirm?: string;
+  contactAccess?: boolean;
   id: string;
   name: string;
   kind: string;
@@ -126,6 +129,7 @@ export type Order = {
   events: HistoryEvent[];
 };
 export type Snapshot = {
+  passwordChangeSuggested?: boolean;
   user: string;
   workspace: string;
   revision: number;
@@ -176,6 +180,8 @@ export const filters = [
 ];
 export function visible(o: Order, m: Member, people: Member[]) {
   if (!m.active || m.deleted) return false;
+  const creator=people.find(p=>p.id===o.issuedBy);
+  if (m.firm && creator?.firm && m.firm!==creator.firm) return false;
   if (!m.external && !o.deletedAt) return true;
   const target = people.find((p) => p.id === o.assignee);
   if (rank(m.role) > (target ? rank(target.role) : 2)) return false;

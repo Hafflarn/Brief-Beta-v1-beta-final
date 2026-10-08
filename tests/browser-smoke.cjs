@@ -42,7 +42,7 @@ const server = require("node:child_process").spawn(
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("http://127.0.0.1:3005");
   await page.getByText("Logga in till din arbetsyta.", { exact: true }).waitFor();
-  await page.getByLabel("Tema", { exact: true }).selectOption("dark");
+  await page.getByRole("button", {name:"Byt till mörkt tema",exact:true}).click();
   await page.screenshot({
     path: require("node:path").resolve(
       __dirname,
@@ -135,7 +135,7 @@ const server = require("node:child_process").spawn(
     fullPage: true,
   });
   await page.getByRole("button", { name: "Öppna kontomeny" }).click();
-  await page.getByRole("button", { name: "Personal", exact: false }).click();
+  await page.getByRole("button", { name: "Mina kollegor", exact: false }).click();
   await page
     .locator(".person-row")
     .filter({ hasText: "Erik Svensson" })
@@ -190,7 +190,7 @@ const server = require("node:child_process").spawn(
       .evaluate((e) => e.scrollWidth > e.clientWidth),
     false,
   );
-  await page.getByLabel("Tema", { exact: true }).selectOption("light");
+  await page.getByRole("button", {name:"Byt till ljust tema",exact:true}).click();
   await page.screenshot({
     path: require("node:path").resolve(
       __dirname,
@@ -251,7 +251,7 @@ const server = require("node:child_process").spawn(
   await privatePage
     .getByText("Logga in till din arbetsyta.", { exact: true })
     .waitFor();
-  await privatePage.getByLabel("Tema", { exact: true }).selectOption("dark");
+  await privatePage.getByRole("button", {name:"Byt till mörkt tema",exact:true}).click();
   await privatePage
     .getByRole("button", { name: "Öppna demonstration" })
     .click();

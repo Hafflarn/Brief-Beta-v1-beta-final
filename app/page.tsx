@@ -3,6 +3,9 @@ import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import Login from "./login";
 import BuildingDiary from "./components/building-diary";
 import CompanyOrganization from "./components/company-organization";
+import CompanySharing from "./components/company-sharing";
+import PasswordForm from "./components/password-form";
+import { validateForm } from "../lib/form-validation";
 import FilePicker from "./components/file-picker";
 import { printOrder } from "../lib/order-print";
 import Logo from "./components/logo";
@@ -54,6 +57,7 @@ type Field = {
   options?: { value: string; label: string }[];
   readOnly?: boolean;
   max?: number;
+  minLength?: number;
 };
 const calendarDate = (value?: string) => value ? new Date(value + "T12:00:00").toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" }) : "Ej angivet";
 function Fields({ fields }: { fields: Field[] }) {
@@ -85,6 +89,7 @@ function Fields({ fields }: { fields: Field[] }) {
               type={f.type || "text"}
               defaultValue={f.value}
               required={f.required}
+              minLength={f.minLength}
               readOnly={f.readOnly}
               maxLength={f.max || 200}
             />
@@ -157,7 +162,7 @@ function Tips({ manager, route }: { manager: boolean; route: string }) {
     : route.startsWith("/project/") ? ["Spara utkast under dagen. Skicka dagrapporten när den är färdig.", "Inskickade rapporter låses och kan kvitteras av angivna mottagare."]
     : route === "/projects" ? ["Öppna projektets arbetsorder från projektkortet.", "Projektets anknytningar samlar kontakter och underentreprenörer."]
     : route === "/companies" ? ["Samla kontaktpersoner hos respektive företag.", "Arkiverade företag hittar du med Visa arkiverade."]
-    : route === "/people" ? ["Sök på företag för att hitta dess personal.", "Öppna en person för att visa kontaktuppgifter."]
+    : route === "/people" ? ["Här visas dina kollegor i samma företag.", "Öppna en person för att visa kontaktuppgifter."]
     : route === "/inbox" ? ["Här samlas byggdagböcker och avslut från arbetsorder du har skapat."]
     : route === "/trash" ? ["Borttagna arbetsorder kan återställas inom 14 dagar."]
     : route.includes("profile") || route.startsWith("/person/") ? ["Telefon och e-post uppdateras på profilsidan."]
@@ -213,13 +218,6 @@ export default function Home() {
   const { route, navigate } = useNavigation(dirty || routeDirty);
   const [filter, setFilter] = useState("Mina ordrar");
   const [accountOpen, setAccountOpen] = useState(false);
-  const [directorySearch, setDirectorySearch] = useState("");
-  const [directoryResults, setDirectoryResults] = useState<
-    cloud.DirectoryPerson[]
-  >([]);
-  const [directoryBusy, setDirectoryBusy] = useState(false);
-  const [directoryError, setDirectoryError] = useState("");
-  const [accountSearch, setAccountSearch] = useState("");
   const [query, setQuery] = useState("");
   const [searchStatus, setSearchStatus] = useState("");
   const [searchPerson, setSearchPerson] = useState("");
@@ -252,54 +250,6 @@ export default function Home() {
   const [invite, setInvite] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [bankSearch, setBankSearch] = useState("");
-  useEffect(() => {
-    let cancelled = false;
-    setDirectoryResults([]);
-    setDirectoryError("");
-    const term = directorySearch.trim();
-    if (!s || term.length < 2 || route !== "/people") {
-      setDirectoryBusy(false);
-      return;
-    }
-    setDirectoryBusy(true);
-    const timer = setTimeout(async () => {
-      try {
-        const results = isDemo
-          ? [
-              ...s.people,
-              {
-                id: "demo-electrician",
-                name: "Emma Johansson",
-                job: "Elektriker",
-                employer: "Elfabriken",
-              },
-              {
-                id: "demo-contractor",
-                name: "Johan Nilsson",
-                job: "Snickare",
-                employer: "Elvbygg",
-              },
-            ].filter((p) =>
-              p.employer
-                .toLocaleLowerCase("sv")
-                .includes(term.toLocaleLowerCase("sv")),
-            )
-          : await withTimeout(cloud.searchDirectory(s.workspace, term));
-        if (!cancelled) setDirectoryResults(results);
-      } catch (error) {
-        if (!cancelled)
-          setDirectoryError(
-            error instanceof Error ? error.message : "Sökningen misslyckades.",
-          );
-      } finally {
-        if (!cancelled) setDirectoryBusy(false);
-      }
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [directorySearch, s?.workspace, isDemo, route]);
   useEffect(() => {
     setOrderTab("Översikt");
   }, [route]);
@@ -357,7 +307,7 @@ export default function Home() {
         throw Error("Din profil kunde inte öppnas. Kontakta din arbetsledare.");
       setS(loaded);
       setMessage("");
-      if (recovery) navigate("/password");
+      if (recovery || loaded.passwordChangeSuggested) navigate("/password");
     } finally {
       if (current()) setChecking(false);
     }
@@ -609,6 +559,7 @@ export default function Home() {
   }
   async function saveEditor(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!validateForm(e.currentTarget, setMessage)) return;
     const data = Object.fromEntries(new FormData(e.currentTarget).entries());
     if (!editor) return;
     if (editor.type === "member") {
@@ -660,6 +611,11 @@ export default function Home() {
       }
       c = { ...data, kind: "save_company", id: old?.id, contacts };
     } else c = { ...data, kind: "save_project", id: old?.id, connections };
+    if (c.kind === "invite_member" && !isDemo) {
+      setBusy(true);
+      try { await cloud.createAccount(s!.workspace, s!.revision, c); setS(await cloud.load(s!.workspace)); setEditor(null); setDirty(false); setMessage("Kontot är skapat. Lämna e-postadressen och det tilldelade lösenordet till din kollega."); } catch (error) {setMessage(error instanceof Error ? error.message : "Kontot kunde inte skapas.");} finally {setBusy(false);}
+      return;
+    }
     if (await act(c)) {
       setEditor(null);
       setDirty(false);
@@ -699,16 +655,9 @@ export default function Home() {
         ]
       : []),
   ];
-  const directoryPeople = people.filter((p) =>
-    directorySearch.trim()
-      ? p.employer
-          .toLocaleLowerCase("sv")
-          .includes(directorySearch.trim().toLocaleLowerCase("sv"))
-      : p.employer.trim().toLocaleLowerCase("sv") ===
-        me.employer.trim().toLocaleLowerCase("sv"),
-  );
+  const directoryPeople = people.filter(p=>!p.external && (me.firm ? p.firm===me.firm : p.employer.trim().toLocaleLowerCase("sv")===me.employer.trim().toLocaleLowerCase("sv")));
   return (
-    <div className="app-shell">
+    <div className="app-shell" onSubmitCapture={e=>{if(!validateForm(e.target as HTMLFormElement,setMessage)){e.preventDefault();e.stopPropagation();}}} onInvalidCapture={e=>{e.preventDefault();const field=e.target as HTMLInputElement;if(field.form)validateForm(field.form,setMessage);}}>
       <header className="header">
         <button
           className="brand-home"
@@ -781,28 +730,6 @@ export default function Home() {
                 >
                   <strong>{me.name}</strong>
                   <small className="muted">{me.employer}</small>
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      setQuery(accountSearch);
-                      setAccountOpen(false);
-                      go("/search");
-                    }}
-                  >
-                    <label htmlFor="account-search">Sök arbetsorder</label>
-                    <div className="dropdown-search">
-                      <input
-                        id="account-search"
-                        type="search"
-                        placeholder="Projekt, arbete eller adress"
-                        value={accountSearch}
-                        onChange={(e) => setAccountSearch(e.target.value)}
-                      />
-                      <button aria-label="Sök" type="submit">
-                        →
-                      </button>
-                    </div>
-                  </form>
                   <button
                     onClick={() => {
                       setAccountOpen(false);
@@ -815,12 +742,11 @@ export default function Home() {
                   {!me.external && (
                     <button
                       onClick={() => {
-                        setDirectorySearch("");
                         setAccountOpen(false);
                         go("/people");
                       }}
                     >
-                      Personal <span>›</span>
+                      Mina kollegor <span>›</span>
                     </button>
                   )}
             <button className="account-logout"
@@ -926,7 +852,7 @@ export default function Home() {
               <div className="actions">
                 {manager && !trash && (
                   <button className="primary" onClick={() => edit("order")}>
-                    <span className="desktop-only">+ Ny arbetsorder</span><span className="mobile-only">+ Ny</span>
+                    Ny arbetsorder
                   </button>
                 )}
                 {trash && me.role === "admin" && (
@@ -1687,7 +1613,7 @@ export default function Home() {
                   {orderLevelAllowed &&
                     canWrite(currentOrder, me) &&
                     currentOrder.status !== "Avslutad" && (
-                      <form
+                      <form noValidate
                         onSubmit={noteSubmit}
                         onChange={() => setDirty(true)}
                       >
@@ -1952,68 +1878,15 @@ export default function Home() {
         {route === "/people" && !me.external && (
           <>
             <div className="page-heading">
-              <h1>Personal</h1>
+              <h1>Mina kollegor</h1>
               {manager && (
                 <button className="primary" onClick={() => edit("member")}>
-                  + Lägg till profil
+                  + Lägg till konto
                 </button>
               )}
             </div>
             <section className="panel content-panel">
-              <div className="directory-search">
-                <label htmlFor="directory-search">Sök företag</label>
-                <input
-                  id="directory-search"
-                  type="search"
-                  placeholder="Sök ett annat företag för att visa dess personal"
-                  value={directorySearch}
-                  onChange={(e) => setDirectorySearch(e.target.value)}
-                />
-                <small className="muted">
-                  Sök med minst två tecken. Katalogen visar namn, yrkesroll och
-                  företag.
-                </small>
-              </div>
-              <h2>
-                {directorySearch.trim()
-                  ? "Personal hos sökta företag"
-                  : "Mina kollegor · " + me.employer}
-              </h2>
-              {directorySearch.trim() ? (
-                <div aria-live="polite">
-                  {directoryBusy && <p>Söker företag…</p>}
-                  {directoryError && <p role="alert">{directoryError}</p>}
-                  {!directoryBusy &&
-                    !directoryError &&
-                    !directoryResults.length && (
-                      <p>
-                        {directorySearch.trim().length < 2
-                          ? "Skriv minst två tecken."
-                          : "Ingen registrerad personal hittades hos det företaget."}
-                      </p>
-                    )}
-                  {directoryResults.map((p) => (
-                    <div className="person-row" key={p.id}>
-                      <span className="person-name">
-                        <span className="avatar">
-                          {p.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .slice(0, 2)
-                            .join("")}
-                        </span>
-                        <span>
-                          {p.name}
-                          <small>
-                            {p.job} · {p.employer}
-                          </small>
-                        </span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <>
+              <h2>{me.employer}</h2>
                   {directoryPeople.map((p) => (
                     <div className="person-row" key={p.id}>
                       <button
@@ -2038,7 +1911,7 @@ export default function Home() {
                         {p.active
                           ? p.joined
                             ? "Aktiv"
-                            : "Väntar på registrering"
+                            : "Väntar på konto"
                           : "Inaktiverad"}
                       </span>
                       {manager && rank(p.role) > rank(me.role) && (
@@ -2048,8 +1921,6 @@ export default function Home() {
                       )}
                     </div>
                   ))}
-                </>
-              )}
             </section>
           </>
         )}
@@ -2076,6 +1947,7 @@ export default function Home() {
               );
               setDirty(false);
             }}
+            onPassword={() => go("/password")}
             onEdit={
               manager && rank((currentPerson || me).role) > rank(me.role)
                 ? () => edit("member", currentPerson!)
@@ -2083,39 +1955,7 @@ export default function Home() {
             }
           />
         )}
-        {route === "/password" && (
-          <section className="panel content-panel narrow">
-            <h1>Välj nytt lösenord</h1>
-            <form
-              onChange={() => setDirty(true)}
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const password = String(
-                  new FormData(e.currentTarget).get("password"),
-                );
-                const { error } = await supabase!.auth.updateUser({ password });
-                if (error) setMessage(error.message);
-                else {
-                  setDirty(false);
-                  setMessage("Lösenordet är uppdaterat.");
-                  go("/orders", true);
-                }
-              }}
-            >
-              <label>
-                Nytt lösenord
-                <input
-                  name="password"
-                  type="password"
-                  minLength={8}
-                  required
-                  autoComplete="new-password"
-                />
-              </label>
-              <button className="primary">Spara lösenord</button>
-            </form>
-          </section>
-        )}
+        {route === "/password" && <section className="panel content-panel narrow"><h1>Välj nytt lösenord</h1>{s.passwordChangeSuggested && <p>Du använder ett tilldelat lösenord. Här kan du välja ett eget.</p>}<PasswordForm demo={isDemo} onMessage={setMessage} onSaved={async()=>{setDirty(false);if(!isDemo)setS(await cloud.load(s.workspace));go("/orders",true);}} />{s.passwordChangeSuggested && <button onClick={async()=>{try{if(!isDemo)await cloud.dismissPasswordSuggestion();setS({...s,passwordChangeSuggested:false});go("/orders",true);}catch(error){setMessage(error instanceof Error?error.message:"Påminnelsen kunde inte avslutas.");}}}>Byt senare</button>}</section>}
         {route === "/projects" && !manager && <><h1>Projekt</h1><p className="muted">Projekt där du har tillgång till byggdagboken.</p>{s.projects.filter(p=>p.diaryRead || s.diaryReports?.some(r=>r.project===p.id)).map(p=><section className="panel content-panel" key={p.id}><h2>{p.name}</h2><p>{p.number} · {p.address}</p><button className="primary" onClick={()=>go("/project/"+p.id)}>Öppna byggdagbok</button></section>)}</>}
         {route.startsWith("/project/") && (currentProject && (manager || currentProject.diaryRead || s.diaryReports?.some(r=>r.project===currentProject.id)) ? <>
           <button className="back" onClick={() => go(manager ? "/projects" : "/orders")}>← Till {manager ? "projekt" : "översikt"}</button>
@@ -2154,6 +1994,7 @@ export default function Home() {
                   : "+ Lägg till företag"}
               </button>
             </div>
+            {route === "/companies" && <CompanySharing workspace={s.workspace} revision={s.revision} demo={isDemo} onMessage={setMessage} onChanged={async()=>{setProfile(null);setS(await cloud.load(s.workspace));}} />}
             <div className="bank-grid">
               <section className="panel content-panel company-bank">
                 <h2>{route === "/projects" ? "Filtrera efter företag" : "Företagsbank"}</h2>
@@ -2419,7 +2260,7 @@ export default function Home() {
           onClose={closeEditor}
           wide
         >
-          <form className="editor-form" onSubmit={saveEditor} onChange={() => setDirty(true)}><p className="form-intro">Fält markerade med * är obligatoriska.</p>
+          <form noValidate className="editor-form" onSubmit={saveEditor} onChange={() => setDirty(true)}><p className="form-intro">Fält markerade med * är obligatoriska.</p>{message && message !== "Sparat." && <p className="notice" role="alert">{message}</p>}
             <fieldset disabled={busy}>
               {editor.type === "order" && (
                 <Fields
@@ -2592,7 +2433,8 @@ export default function Home() {
                         {
                           key: "employer",
                           label: "Företag",
-                          value: p?.employer,
+                          value: p?.employer || me.employer,
+                          readOnly: true,
                           required: true,
                         },
                         {
@@ -2607,17 +2449,25 @@ export default function Home() {
                           ? [
                               {
                                 key: "email",
-                                label: "E-post för registrering",
+                                label: "E-post för inloggning",
                                 type: "email",
                                 required: true,
+                              },
+                              {
+                                key: "password",
+                                label: "Tilldelat lösenord",
+                                type: "password",
+                                required: true,
+                                minLength: 8,
+                                max: 128,
                               },
                               {
                                 key: "role",
                                 label: "Roll",
                                 value: "worker",
                                 required: true,
-                                options: (["site_manager", "supervisor", "worker"] as const)
-                                  .filter((r) => rank(r) > rank(me.role))
+                                options: (["admin", "site_manager", "supervisor", "worker"] as const)
+                                  .filter((r) => me.role === "admin" || rank(r) >= rank(me.role))
                                   .map((r) => ({ value: r, label: roles[r] })),
                               },
                               {
@@ -2633,14 +2483,7 @@ export default function Home() {
                   />
                   {!editor.value ? (
                     <>
-                      <label className="check-label">
-                        <input name="external" type="checkbox" />
-                        Extern användare från annat företag
-                      </label>
-                      <p className="muted">
-                        Be personen registrera sig med denna e-postadress. Ingen
-                        e-postinbjudan skickas automatiskt.
-                      </p>
+                      <p className="muted">Kontot kopplas till ditt företag. Lämna det tilldelade lösenordet till den anställde, som erbjuds att byta det vid första inloggningen.</p>
                     </>
                   ) : (
                     <>
@@ -3003,6 +2846,7 @@ function Profile({
   onSave,
   onEmail,
   onEdit,
+  onPassword,
 }: {
   person: Member;
   self: boolean;
@@ -3011,6 +2855,7 @@ function Profile({
   onSave: (phone: string) => Promise<boolean>;
   onEmail: (email: string) => Promise<void>;
   onEdit?: () => void;
+  onPassword: () => void;
 }) {
   const [phone, setPhone] = useState(person.phone);
   const [email, setEmail] = useState(person.email);
@@ -3041,8 +2886,9 @@ function Profile({
       </dl>
       {self ? (
         <>
-          <h2 className="profile-section-title">Kontaktuppgifter</h2>
-          <form
+          <h2 className="profile-section-title">Ändra din profil</h2>
+          <button type="button" onClick={onPassword}>Byt lösenord</button>
+          <form noValidate
             onSubmit={async (e) => {
               e.preventDefault();
               await onSave(String(new FormData(e.currentTarget).get("phone")));
@@ -3063,7 +2909,7 @@ function Profile({
               Spara telefon
             </button>
           </form>
-          <form
+          <form noValidate
             onSubmit={async (e) => {
               e.preventDefault();
               await onEmail(String(new FormData(e.currentTarget).get("email")));
@@ -3086,7 +2932,7 @@ function Profile({
             <button disabled={busy}>Byt e-postadress</button>
           </form>
           <p className="muted">
-            Yrkesroll och företag kan bara rättas av en högre behörig roll.
+            Yrkesroll kan rättas av en högre behörig roll. Företagskopplingen är låst.
             Systemrollen är låst.
           </p>
         </>
@@ -3124,7 +2970,7 @@ function ControlRow({
     setDone(item.done);
   }, [item.comment, item.done]);
   return (
-    <form
+    <form noValidate
       className="control-row"
       onSubmit={async (e) => {
         e.preventDefault();

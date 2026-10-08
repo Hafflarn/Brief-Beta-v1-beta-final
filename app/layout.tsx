@@ -14,7 +14,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem('brief-theme')||'auto';document.documentElement.dataset.theme=t==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;}catch(e){}`,
+            __html: `try{var t=localStorage.getItem('brief-theme');document.documentElement.dataset.theme=t==='dark'?'dark':'light';}catch(e){}`,
           }}
         />
       </head>
