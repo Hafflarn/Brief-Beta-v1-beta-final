@@ -1594,3 +1594,5 @@ button, input, select, textarea {border-radius:8px}
 .firm-sharing{margin-bottom:20px}.firm-list{max-height:300px;overflow:auto}.firm-request{padding:16px 0;border-top:1px solid var(--border)}.contact-card{padding:18px;border:1px solid var(--border);border-radius:10px}.contact-card>button{float:right}.organization-person{flex-wrap:wrap}
 @media(max-width:480px){.page-heading{flex-wrap:wrap}.page-heading>.actions{width:100%;margin-left:0}.page-heading>.actions>.primary{max-width:100%}.firm-list .person-row{align-items:flex-start}.firm-list .person-row>strong{overflow-wrap:anywhere}.firm-request strong{overflow-wrap:anywhere}}
 .tips p{white-space:normal;overflow-wrap:anywhere}
+
+.primary-project-number>p{font-size:1.3rem;font-weight:700;margin-bottom:.35rem}.customer-project-number{display:block;color:var(--muted);font-size:.78rem}.project-sharing{margin-bottom:20px}.project-sharing form{margin:16px 0}.project-sharing form>strong{display:block}.project-sharing .actions{margin-top:12px}

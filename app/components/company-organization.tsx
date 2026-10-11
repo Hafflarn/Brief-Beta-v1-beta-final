@@ -34,14 +34,12 @@ export default function CompanyOrganization({ company, people, workspace, revisi
     <p className="muted">Klicka på en person för e-post och telefon.</p>
     <div className="organization-company">{company.name}</div>
     {error ? <p role="alert">{error}</p> : !persons ? <p role="status">Hämtar organisation…</p> : <>
-      {["Beställare / Platschef", "Platschef / Arbetsledare", "Arbetare"].map((label, index) => <div className="organization-level" key={label}>
-        <h4>{label}</h4>
+      {[0,1,2].filter(index => persons.some(p => level(p) === index)).map(index => <div className="organization-level" key={index}>
         <div className="organization-people">
           {persons.filter(p => level(p) === index).map(person => <button className="organization-person" key={person.id} onClick={() => onPerson(person)} aria-label={"Visa kontaktuppgifter för " + person.name}>
             <span className="avatar" aria-hidden="true">{person.name.split(/\s+/).slice(0,2).map(n=>n[0]).join("")}</span>
             <span><strong>{person.name}</strong><small>{roleLabel(person)}</small>{person.job && <small>{person.job}</small>}</span>
           </button>)}
-          {!persons.some(p => level(p) === index) && <p className="organization-empty">Ingen person registrerad på denna nivå.</p>}
         </div>
       </div>)}
       {!persons.length && <p className="muted">Lägg till kontaktpersoner eller registrera personal hos företaget.</p>}

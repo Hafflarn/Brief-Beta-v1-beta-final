@@ -112,3 +112,7 @@ export type FirmRequest = {id:string;sender:string;recipient:string;senderName:s
 export type FirmDirectory = {firms:Firm[];requests:FirmRequest[]};
 export async function firmDirectory(workspace:string):Promise<FirmDirectory>{const {data,error}=await client().rpc('brief_beta_firm_directory',{workspace_id:workspace});if(error)throw Error(error.message);return data;}
 export async function firmRequest(workspace:string,target:string,action:string):Promise<FirmDirectory>{const {data,error}=await client().rpc('brief_beta_firm_request',{workspace_id:workspace,target,action});if(error)throw Error(error.message);return data;}
+
+export type ProjectInvitation = {project:string;name:string;sourceNumber:string;number?:string;firm:string;firmName:string;ownerName:string;state:'pending'|'accepted'|'declined'|'revoked';incoming:boolean;people:{id:string;name:string;role:string}[];orders:{id:string;title:string;recipients:string[]}[]};
+export async function projectLinks(workspace:string):Promise<{invitations:ProjectInvitation[]}>{const {data,error}=await client().rpc('brief_beta_project_links',{workspace_id:workspace});if(error)throw Error(error.message);return data;}
+export async function projectLinkAction(workspace:string,project:string,target:string,action:string,number?:string):Promise<{invitations:ProjectInvitation[]}>{const {data,error}=await client().rpc('brief_beta_project_link_action',{workspace_id:workspace,project_id:project,target,action,local_number:number??null});if(error)throw Error(error.message);return data;}

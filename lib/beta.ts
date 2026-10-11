@@ -23,6 +23,7 @@ export type Contact = {
   organizationRole?: "client" | "site_manager_client" | "site_manager" | "supervisor" | "worker";
 };
 export type Company = {
+  shared?: boolean;
   linkedFirm?: string;
   contactAccess?: boolean;
   id: string;
@@ -39,6 +40,7 @@ export type Connection = {
   function: string;
 };
 export type Project = {
+  shared?: boolean;
   siteManager?: string;
   verifier?: string;
   diaryRead?: boolean;
@@ -103,6 +105,7 @@ export const hasControls = (o: Order) =>
       o.controls?.[k]?.items.some((i) => i.done || i.comment || i.at),
   );
 export type Order = {
+  shared?: boolean;
   id: string;
   project: string;
   number: string;
@@ -155,7 +158,7 @@ export const joined = (o: Order, m: Member) =>
   o.assignee === m.id ||
   o.participants.some((p) => p.user === m.id && p.acceptedAt);
 export const canWrite = (o: Order, m: Member) =>
-  !o.deletedAt && (manages(m) || joined(o, m));
+  !o.shared && !o.deletedAt && (manages(m) || joined(o, m));
 export const onHome = (o: Order, at = Date.now()) =>
   !o.deletedAt &&
   (o.status !== "Avslutad" ||
@@ -180,6 +183,7 @@ export const filters = [
 ];
 export function visible(o: Order, m: Member, people: Member[]) {
   if (!m.active || m.deleted) return false;
+  if(o.shared) return !o.deletedAt;
   const creator=people.find(p=>p.id===o.issuedBy);
   if (m.firm && creator?.firm && m.firm!==creator.firm) return false;
   if (!m.external && !o.deletedAt) return true;

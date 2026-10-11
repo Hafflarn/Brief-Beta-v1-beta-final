@@ -4,6 +4,7 @@ import Login from "./login";
 import BuildingDiary from "./components/building-diary";
 import CompanyOrganization from "./components/company-organization";
 import CompanySharing from "./components/company-sharing";
+import ProjectSharing from "./components/project-sharing";
 import PasswordForm from "./components/password-form";
 import { validateForm } from "../lib/form-validation";
 import FilePicker from "./components/file-picker";
@@ -352,6 +353,7 @@ export default function Home() {
   };
   async function act(c: Command) {
     if (!s || lock.current) return false;
+    if (s.orders.some(o=>o.id===c.id&&o.shared) || s.projects.some(p=>p.id===c.id&&p.shared)) {setMessage("Delade projekt och arbetsordrar hanteras av företaget som äger dem.");return false;}
     lock.current = true;
     setBusy(true);
     setMessage("");
@@ -466,7 +468,7 @@ export default function Home() {
   const companyName = (ident: string) =>
     s.companies.find((c) => c.id === ident)?.name || "—";
   const assignable = people.filter(
-    (p) => p.active && rank(p.role) >= rank(me.role),
+    (p) => p.active && (!me.firm || p.firm===me.firm) && rank(p.role) >= rank(me.role),
   );
   const nameOfProject = (o: Order) =>
     s.projects.find((p) => p.id === o.project);
@@ -502,7 +504,7 @@ export default function Home() {
         );
       if (trash) return true;
       if (filter === "Mina ordrar")
-        return joined(o, me) || o.participants.some((p) => p.user === me.id);
+        return o.shared || joined(o, me) || o.participants.some((p) => p.user === me.id);
       if (filter === "Påbörjade") return o.status === "Påbörjad";
       if (filter === "Ej påbörjade") return o.status === "Ej påbörjad";
       if (filter === "Avslutade") return o.status === "Avslutad";
@@ -513,7 +515,7 @@ export default function Home() {
     ? orders.find((o) => o.id === decodeURIComponent(route.slice(7)))
     : undefined;
   const orderLevelAllowed = currentOrder
-    ? rank(me.role) <=
+    ? !currentOrder.shared && rank(me.role) <=
       rank(
         people.find((p) => p.id === currentOrder.assignee)?.role ||
           "supervisor",
@@ -892,7 +894,7 @@ export default function Home() {
                       className={filter === "Mina ordrar" ? "selected" : ""}
                       onClick={() => setFilter("Mina ordrar")}
                     >
-                      Min lista <span className="scope-count">{orders.filter(o => !o.deletedAt && (joined(o, me) || o.participants.some(p => p.user === me.id))).length}</span>
+                      Min lista <span className="scope-count">{orders.filter(o => !o.deletedAt && (o.shared || joined(o, me) || o.participants.some(p => p.user === me.id))).length}</span>
                     </button>
                     <button
                       aria-pressed={filter === "Alla"}
@@ -1129,7 +1131,7 @@ export default function Home() {
                                     <span>{o.title}</span>
                                   </button>
                                   <small className="muted">
-                                    {nameOfProject(o)?.customerNumber} ·{" "}
+                                    {nameOfProject(o)?.number} ·{" "}
                                     {nameOfProject(o) &&
                                       companyName(nameOfProject(o)!.customer)}
                                   </small>
@@ -1198,7 +1200,7 @@ export default function Home() {
               </button>
               <div className="page-heading order-heading">
                 <div>
-                  <p className="eyebrow">{nameOfProject(currentOrder)?.name} · {currentOrder.number}</p>
+                  <p className="eyebrow">Projekt {nameOfProject(currentOrder)?.number} · {nameOfProject(currentOrder)?.name} · {currentOrder.number}</p>
                   <div className="order-title-line"><h1>{currentOrder.title}</h1><Badge order={currentOrder} /></div>
                 </div>
                 <div className="actions order-actions">
@@ -1321,13 +1323,13 @@ export default function Home() {
                   </button>
                 ))}
               </div>
+              {currentOrder.shared&&<p className="notice">Ansluten arbetsorder · läsåtkomst. Övriga arbetsordrar och projekt hos företaget visas inte.</p>}
               <div hidden={orderTab !== "Översikt"}>
                 <section className="panel detail-grid">
                   <div><small>Adress</small><p>{currentOrder.address || nameOfProject(currentOrder)?.address || "—"}</p></div>
                   <div><small>Beställare</small><p>{companyName(nameOfProject(currentOrder)?.customer || "")}</p></div>
                   <div><small>Ansvarig upprättare</small><p>{memberName(currentOrder.issuedBy)} · {roles[people.find(p => p.id === currentOrder.issuedBy)?.role || "supervisor"]}</p></div>
-                  <div><small>Eget projektnummer</small><p>{nameOfProject(currentOrder)?.number || "—"}</p></div>
-                  <div><small>Beställarens projektnummer</small><p>{nameOfProject(currentOrder)?.customerNumber || "—"}</p></div>
+                  <div className="primary-project-number"><small>Eget projektnummer</small><p>{nameOfProject(currentOrder)?.number || "—"}</p><small className="customer-project-number">Beställarens projektnummer: {nameOfProject(currentOrder)?.customerNumber || "—"}</small></div>
                   <div><small>Utförare</small><p>{memberName(currentOrder.assignee)}</p></div>
                   <div className="detail-actions">
                     {manager &&
@@ -1956,12 +1958,12 @@ export default function Home() {
           />
         )}
         {route === "/password" && <section className="panel content-panel narrow"><h1>Välj nytt lösenord</h1>{s.passwordChangeSuggested && <p>Du använder ett tilldelat lösenord. Här kan du välja ett eget.</p>}<PasswordForm demo={isDemo} onMessage={setMessage} onSaved={async()=>{setDirty(false);if(!isDemo)setS(await cloud.load(s.workspace));go("/orders",true);}} />{s.passwordChangeSuggested && <button onClick={async()=>{try{if(!isDemo)await cloud.dismissPasswordSuggestion();setS({...s,passwordChangeSuggested:false});go("/orders",true);}catch(error){setMessage(error instanceof Error?error.message:"Påminnelsen kunde inte avslutas.");}}}>Byt senare</button>}</section>}
-        {route === "/projects" && !manager && <><h1>Projekt</h1><p className="muted">Projekt där du har tillgång till byggdagboken.</p>{s.projects.filter(p=>p.diaryRead || s.diaryReports?.some(r=>r.project===p.id)).map(p=><section className="panel content-panel" key={p.id}><h2>{p.name}</h2><p>{p.number} · {p.address}</p><button className="primary" onClick={()=>go("/project/"+p.id)}>Öppna byggdagbok</button></section>)}</>}
-        {route.startsWith("/project/") && (currentProject && (manager || currentProject.diaryRead || s.diaryReports?.some(r=>r.project===currentProject.id)) ? <>
+        {route === "/projects" && !manager && <><h1>Projekt</h1><p className="muted">Projekt och byggdagböcker som du är ansluten till.</p>{s.projects.filter(p=>p.shared || p.diaryRead || s.diaryReports?.some(r=>r.project===p.id)).map(p=><section className="panel content-panel" key={p.id}><h2>{p.name}</h2><p>{p.number} · {p.address}</p><button className="primary" onClick={()=>go("/project/"+p.id)}>{p.shared ? "Öppna anslutet projekt" : "Öppna byggdagbok"}</button></section>)}</>}
+        {route.startsWith("/project/") && (currentProject && (manager || currentProject.shared || currentProject.diaryRead || s.diaryReports?.some(r=>r.project===currentProject.id)) ? <>
           <button className="back" onClick={() => go(manager ? "/projects" : "/orders")}>← Till {manager ? "projekt" : "översikt"}</button>
-          <div className="page-heading"><div><p className="eyebrow">Projekt · {currentProject.number}</p><h1>{currentProject.name}</h1><p className="muted">{companyName(currentProject.customer)} · {currentProject.address}{currentProject.archived ? " · Arkiverat" : ""}</p></div>{manager && <button onClick={() => edit("project",currentProject)}>Redigera projekt</button>}</div>
-          {!currentProject.siteManager && <p className="notice">Ange ansvarig platschef under Redigera projekt för att kunna skicka dagrapporter.</p>}
-          <BuildingDiary key={currentProject.id + (requestedReport || "")} project={currentProject} me={me} requestedReport={requestedReport}
+          <div className="page-heading"><div><p className="eyebrow">Projekt · {currentProject.number}</p><h1>{currentProject.name}</h1><p className="muted">{companyName(currentProject.customer)} · {currentProject.address}{currentProject.archived ? " · Arkiverat" : ""}</p></div>{manager && !currentProject.shared && <button onClick={() => edit("project",currentProject)}>Redigera projekt</button>}</div>
+          {!currentProject.shared && !currentProject.siteManager && <p className="notice">Ange ansvarig platschef under Redigera projekt för att kunna skicka dagrapporter.</p>}
+          {currentProject.shared ? <section className="panel content-panel"><p>Du är ansluten till detta projekt med eget projektnummer {currentProject.number}. Endast arbetsordrar som kopplats till dig visas.</p><button onClick={()=>{setQuery(currentProject.number);go("/search");}}>Visa mina anslutna arbetsordrar</button></section> : <BuildingDiary key={currentProject.id + (requestedReport || "")} project={currentProject} me={me} requestedReport={requestedReport}
             reports={(s.diaryReports || []).filter(r => r.project === currentProject.id || (!r.project && s.orders.some(o => o.id === r.order && o.project === currentProject.id)))}
             header={{project:currentProject.name,projectNumber:currentProject.number,customerNumber:currentProject.customerNumber,orderNumber:"",customer:companyName(currentProject.customer),address:currentProject.address,author:me.name,siteManager:memberName(currentProject.siteManager || null),siteManagerId:currentProject.siteManager || "",verifier:currentProject.verifier ? memberName(currentProject.verifier) : "",verifierId:currentProject.verifier}}
             canEdit={!currentProject.archived && !!currentProject.siteManager && (isDemo ? manager || s.orders.some(o => o.project === currentProject.id && canWrite(o,me) && o.status !== "Avslutad") : !!currentProject.diaryWrite)}
@@ -1970,7 +1972,7 @@ export default function Home() {
               if(uploadFiles.length && isDemo) throw Error("Filuppladdning testas i en Supabase-arbetsyta.");
               const files = uploadFiles.length ? [...content.files,...await cloud.upload(s,currentProject.id,uploadFiles)] : content.files;
               return act({kind:"save_project_diary",id:currentProject.id,report,date,content:{...content,files},submit});
-            }} />
+            }} />}
         </> : <p className="empty">Projektets byggdagbok är inte tillgänglig för din profil.</p>)}
         {(route === "/companies" || route === "/projects") && manager && (
           <>
@@ -1980,7 +1982,7 @@ export default function Home() {
                 <p className="muted">
                   {route === "/projects"
                     ? "Företagets projekt och anknytningar."
-                    : "Företagsbank och kontaktpersoner."}
+                    : "Min företagsbank och kontaktpersoner."}
                 </p>
               </div>
               <button
@@ -1995,9 +1997,10 @@ export default function Home() {
               </button>
             </div>
             {route === "/companies" && <CompanySharing workspace={s.workspace} revision={s.revision} demo={isDemo} onMessage={setMessage} onChanged={async()=>{setProfile(null);setS(await cloud.load(s.workspace));}} />}
+            {route === "/projects" && <ProjectSharing workspace={s.workspace} revision={s.revision} demo={isDemo} projects={s.projects} onChanged={async()=>{setS(await cloud.load(s.workspace));}} />}
             <div className="bank-grid">
               <section className="panel content-panel company-bank">
-                <h2>{route === "/projects" ? "Filtrera efter företag" : "Företagsbank"}</h2>
+                <h2>{route === "/projects" ? "Filtrera efter företag" : "Min företagsbank"}</h2>
                 <input
                   aria-label="Sök företag"
                   type="search"
@@ -2054,10 +2057,8 @@ export default function Home() {
                           <div className="section-heading">
                             <h2>{company.name}</h2>
                             <div className="actions">
-                              <button onClick={() => edit("company", company)}>
-                                Redigera
-                              </button>
-                              {!company.archived && (
+                              {!company.shared&&<button onClick={() => edit("company", company)}>Redigera</button>}
+                              {!company.shared && !company.archived && (
                                 <button
                                   onClick={() =>
                                     confirmAction(
@@ -2100,16 +2101,12 @@ export default function Home() {
                               <article className="project-card" key={p.id}>
                                 <div className="section-heading">
                                   <h3>
-                                    {p.customerNumber} · {p.name}
+                                    {p.number} · {p.name}
                                   </h3>
-                                  <button onClick={() => edit("project", p)}>
-                                    Redigera
-                                  </button>
+                                  {!p.shared&&<button onClick={() => edit("project", p)}>Redigera</button>}
                                 </div>
                                 <p className="muted">
                                   Beställarens projektnummer: {p.customerNumber}
-                                  <br />
-                                  Eget projektnummer: {p.number}
                                   <br />
                                   {p.address}
                                 </p>
@@ -2137,7 +2134,7 @@ export default function Home() {
                                   );
                                 })}
                                 <div className="actions">
-                                  <button className="primary" onClick={() => go("/project/" + p.id)}>Öppna projektets byggdagbok</button>
+                                  <button className="primary" onClick={() => go("/project/" + p.id)}>{p.shared ? "Öppna anslutet projekt" : "Öppna projektets byggdagbok"}</button>
                                   <button
                                     onClick={() => {
                                       setQuery(p.number);
@@ -2146,7 +2143,7 @@ export default function Home() {
                                   >
                                     Visa projektets arbetsorder
                                   </button>
-                                  {!p.archived && (
+                                  {!p.shared && !p.archived && (
                                     <button
                                       onClick={() =>
                                         confirmAction(
@@ -2286,7 +2283,7 @@ export default function Home() {
                         value: o?.project,
                         required: true,
                         options: s.projects
-                          .filter((p) => !p.archived)
+                          .filter((p) => !p.archived && !p.shared)
                           .map((p) => ({
                             value: p.id,
                             label: p.number + " · " + p.name,
@@ -2654,7 +2651,7 @@ export default function Home() {
                       const p = editor.value as Project | undefined;
                       return [
                         { key:"siteManager",label:"Ansvarig platschef",value:p?.siteManager || me.id,required:true,options:people.filter(member => member.active && !member.external && member.role !== "worker").map(member => ({value:member.id,label:member.name})) },
-                        { key:"verifier",label:"Beställare/kontrollant för kvittens (valfritt)",value:p?.verifier || "",options:people.filter(member => member.active).map(member => ({value:member.id,label:member.name})) },
+                        { key:"verifier",label:"Beställare/kontrollant för kvittens (valfritt)",value:p?.verifier || "",options:people.filter(member => member.active && (!me.firm || member.firm===me.firm)).map(member => ({value:member.id,label:member.name})) },
                         {
                           key: "customer",
                           label: "Beställare",
