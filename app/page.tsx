@@ -207,6 +207,7 @@ function Tips({ manager, route }: { manager: boolean; route: string }) {
 export default function Home() {
   const [s, setS] = useState<Snapshot | null>(null);
   const [checking, setChecking] = useState(cloudEnabled);
+  const [loadingComplete, setLoadingComplete] = useState(false);
   const connectionVersion = useRef(0);
   const [isDemo, setIsDemo] = useState(false);
   const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>(
@@ -274,6 +275,8 @@ export default function Home() {
     );
   }, [filter, query, searchStatus, searchPerson]);
   async function connect() {
+    setLoadingComplete(false);
+    setChecking(true);
     const version = ++connectionVersion.current;
     const current = () => version === connectionVersion.current;
     try {
@@ -310,6 +313,9 @@ export default function Home() {
       setS(loaded);
       setMessage("");
       if (recovery || loaded.passwordChangeSuggested) navigate("/password");
+    } catch (error) {
+      if (current()) setMessage(error instanceof Error ? error.message : "Arbetsytan kunde inte öppnas.");
+      throw error;
     } finally {
       if (current()) setChecking(false);
     }
@@ -419,7 +425,8 @@ export default function Home() {
   ) {
     setDialog({ title, body, label, action, danger });
   }
-  if (checking) return <LoadingScreen />;
+  if (checking || (s && me && !loadingComplete))
+    return <LoadingScreen onMinimumComplete={setLoadingComplete} />;
   if (!s || !me)
     return (
       <>
@@ -447,6 +454,7 @@ export default function Home() {
         <Login
           onReady={connect}
           onDemo={() => {
+            setLoadingComplete(false);
             setIsDemo(true);
             setS(demo());
             setChecking(false);

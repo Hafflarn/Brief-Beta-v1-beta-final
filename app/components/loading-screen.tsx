@@ -42,14 +42,17 @@ function ribbon(start:number,offset:number) {
   return points.map((p,i)=>`${i?"L":"M"}${p[0].toFixed(3)} ${p[1].toFixed(3)}`).join(" ")+" Z";
 }
 
-export default function LoadingScreen() {
+export const LOADING_LOOP_MS = 5600;
+export const MINIMUM_LOADING_MS = LOADING_LOOP_MS;
+
+export default function LoadingScreen({ onMinimumComplete }: { onMinimumComplete?: (complete: boolean) => void } = {}) {
   const mint = useRef<SVGPathElement>(null), blue = useRef<SVGPathElement>(null);
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let frame=0, origin:number|undefined;
+    let frame=0;
+    let origin=performance.now();
     const render=(time:number)=> {
-      if(origin===undefined) origin=time;
-      const phase=((time-origin)%5600)/2800;
+      const phase=((time-origin)%LOADING_LOOP_MS)/(LOADING_LOOP_MS/2);
       const v=Math.max(0,Math.min(1,((phase%1)-.10)/.80));
       const ease=v-Math.sin(2*Math.PI*v)/(2*Math.PI);
       const offset=(Math.floor(phase)+ease)/2;
@@ -58,7 +61,7 @@ export default function LoadingScreen() {
       frame=requestAnimationFrame(render);
     };
     const update=()=> {
-      cancelAnimationFrame(frame); origin=undefined;
+      cancelAnimationFrame(frame); origin=performance.now();
       mint.current?.setAttribute("d",ribbon(.075,0));
       blue.current?.setAttribute("d",ribbon(.575,0));
       if(!reduced.matches) frame=requestAnimationFrame(render);
@@ -66,6 +69,11 @@ export default function LoadingScreen() {
     update(); reduced.addEventListener("change",update);
     return ()=> {cancelAnimationFrame(frame);reduced.removeEventListener("change",update);};
   },[]);
+  useEffect(() => {
+    if (!onMinimumComplete) return;
+    const timer = window.setTimeout(() => onMinimumComplete(true), MINIMUM_LOADING_MS);
+    return () => window.clearTimeout(timer);
+  }, [onMinimumComplete]);
   return <main className="brief-loading" role="status" aria-label="Laddar din arbetsyta" aria-busy="true">
     <svg className="brief-loading-art" viewBox="200 100 400 300" fill="none" aria-hidden="true" focusable="false">
       <path ref={mint} d={ribbon(.075,0)} fill="#08cfa0" />
