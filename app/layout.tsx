@@ -10,11 +10,11 @@ export const metadata: Metadata = {
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="sv" suppressHydrationWarning>
+    <html lang="sv" data-theme="dark" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem('brief-theme');document.documentElement.dataset.theme=t==='dark'?'dark':'light';}catch(e){}`,
+            __html: `try{var t=localStorage.getItem('brief-theme');document.documentElement.dataset.theme=t==='light'?'light':'dark';}catch(e){}`,
           }}
         />
       </head>

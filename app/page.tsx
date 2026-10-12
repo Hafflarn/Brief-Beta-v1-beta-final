@@ -10,6 +10,7 @@ import { validateForm } from "../lib/form-validation";
 import FilePicker from "./components/file-picker";
 import { printOrder } from "../lib/order-print";
 import Logo from "./components/logo";
+import LoadingScreen from "./components/loading-screen";
 import ThemePicker from "./components/theme";
 import { useNavigation } from "./components/navigation";
 import { cloudEnabled, supabase } from "../lib/supabase";
@@ -418,12 +419,7 @@ export default function Home() {
   ) {
     setDialog({ title, body, label, action, danger });
   }
-  if (checking)
-    return (
-      <main className="session-check" aria-label="Brief" aria-busy="true">
-        <p role="status">Hämtar din arbetsyta…</p>
-      </main>
-    );
+  if (checking) return <LoadingScreen />;
   if (!s || !me)
     return (
       <>
