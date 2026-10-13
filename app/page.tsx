@@ -1935,7 +1935,7 @@ export default function Home() {
         {(route === "/profile" || currentPerson) && (
           <Profile
             logo={route === "/profile" || currentPerson?.firm === me.firm ? s.firmBrand?.logo : s.printBrands?.find(f=>f.id===currentPerson?.firm)?.logo}
-            logoUpload={manager && (route === "/profile" || currentPerson?.id === me.id) ? <CompanyLogoUpload workspace={s.workspace} logo={s.firmBrand?.logo} demo={isDemo} onChanged={async()=>{setS(await cloud.load(s.workspace));}}/> : undefined}
+            logoUpload={(me.role === "site_manager" || me.role === "supervisor") && route === "/profile" ? <CompanyLogoUpload workspace={s.workspace} logo={s.firmBrand?.logo} demo={isDemo} onChanged={async()=>{setS(await cloud.load(s.workspace));}}/> : undefined}
             person={route === "/profile" ? me : currentPerson!}
             self={route === "/profile" || currentPerson?.id === me.id}
             busy={busy}
@@ -2850,7 +2850,7 @@ function Profile({
         <h1>{self ? "Min profil" : person.name}</h1>{logo&&<img className="company-logo-profile" src={logo} alt="Företagslogga"/>}
         {onEdit && <button onClick={onEdit}>Redigera</button>}
       </div>
-      {logoUpload}<h2 className="profile-section-title">Profiluppgifter</h2><dl className="profile-details">
+      <h2 className="profile-section-title">Profiluppgifter</h2><dl className="profile-details">
         <dt>Namn</dt>
         <dd>{person.name}</dd>
         <dt>Yrkesroll</dt>
@@ -2920,6 +2920,7 @@ function Profile({
           </p>
         </>
       )}
+      {self && logoUpload}
     </section>
   );
 }

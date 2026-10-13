@@ -1602,3 +1602,16 @@ button, input, select, textarea {border-radius:8px}
 .primary-project-number>p{font-size:1.3rem;font-weight:700;margin-bottom:.35rem}.customer-project-number{display:block;color:var(--muted);font-size:.78rem}.project-sharing{margin-bottom:20px}.project-sharing form{margin:16px 0}.project-sharing form>strong{display:block}.project-sharing .actions{margin-top:12px}
 
 .company-logo-profile{width:90px;height:48px;object-fit:contain}.company-logo-heading{display:block;width:auto;max-width:min(320px,100%);height:100px;object-fit:contain;object-position:left center;margin-bottom:16px}.company-logo-upload{margin:16px 0}.company-logo-upload small{display:block;margin:8px 0}
+
+.organization-tree {overflow-x:auto;padding:0 8px 12px}
+.organization-tree .organization-level {border:0;margin:0;padding:24px 0 0}
+.organization-tree .organization-level::before {top:0;height:24px}
+.organization-tree .organization-people {flex-wrap:nowrap;align-items:stretch;gap:0;width:max-content;min-width:100%;padding-top:24px}
+.organization-tree .organization-person {position:relative;flex:0 0 220px;min-width:220px;margin:0 12px;justify-content:center;text-align:center;overflow:visible}
+.organization-tree .organization-person::before {content:"";position:absolute;left:50%;top:-24px;height:24px;border-left:1px solid var(--border)}
+.organization-tree .organization-person::after {content:"";position:absolute;top:-24px;left:-13px;right:-13px;border-top:1px solid var(--border)}
+.organization-tree .organization-person:first-child::after {left:50%}
+.organization-tree .organization-person:last-child::after {right:50%}
+.organization-tree .organization-level:has(+ .organization-level)::after {content:"";display:block;height:24px;width:50%;border-right:1px solid var(--border)}
+.organization-tree .organization-level + .organization-level {padding-top:0}
+.organization-tree .organization-level + .organization-level::before {display:none}
