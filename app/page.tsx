@@ -2850,8 +2850,6 @@ function Profile({
         <dd>{person.job}</dd>
         <dt>Företag</dt>
         <dd>{person.employer}</dd>
-        <dt>Roll</dt>
-        <dd>{roles[person.role]}</dd>
       </dl>
       {self ? (
         <>
