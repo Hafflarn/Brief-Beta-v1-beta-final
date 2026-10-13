@@ -107,8 +107,8 @@ async function accountRequest(path: string, body: unknown) {
 export const createAccount=(workspace:string,revision:number,details:Command)=>accountRequest('/api/accounts',{workspace,revision,details});
 export const changePassword=(password:string)=>accountRequest('/api/password',{password});
 export async function dismissPasswordSuggestion(){const {error}=await client().rpc('brief_beta_password_suggestion_dismiss');if(error)throw Error(error.message);}
-export type Firm = {id:string;name:string;own:boolean;shared:boolean;people:OrganizationPerson[]};
-export type FirmRequest = {id:string;sender:string;recipient:string;senderName:string;recipientName:string;role:string;state:'pending'|'accepted'|'declined'|'revoked';incoming:boolean;canRespond:boolean;at:string};
+export type Firm = {id:string;name:string;organizationNumber?:string;own:boolean;shared:boolean;people:OrganizationPerson[]};
+export type FirmRequest = {id:string;sender:string;recipient:string;senderName:string;senderNumber?:string;recipientName:string;recipientNumber?:string;role:string;state:'pending'|'accepted'|'declined'|'revoked';incoming:boolean;canRespond:boolean;at:string};
 export type FirmDirectory = {firms:Firm[];requests:FirmRequest[]};
 export async function firmDirectory(workspace:string):Promise<FirmDirectory>{const {data,error}=await client().rpc('brief_beta_firm_directory',{workspace_id:workspace});if(error)throw Error(error.message);return data;}
 export async function firmRequest(workspace:string,target:string,action:string):Promise<FirmDirectory>{const {data,error}=await client().rpc('brief_beta_firm_request',{workspace_id:workspace,target,action});if(error)throw Error(error.message);return data;}
@@ -116,3 +116,7 @@ export async function firmRequest(workspace:string,target:string,action:string):
 export type ProjectInvitation = {project:string;name:string;sourceNumber:string;number?:string;firm:string;firmName:string;ownerName:string;state:'pending'|'accepted'|'declined'|'revoked';incoming:boolean;people:{id:string;name:string;role:string}[];orders:{id:string;title:string;recipients:string[]}[]};
 export async function projectLinks(workspace:string):Promise<{invitations:ProjectInvitation[]}>{const {data,error}=await client().rpc('brief_beta_project_links',{workspace_id:workspace});if(error)throw Error(error.message);return data;}
 export async function projectLinkAction(workspace:string,project:string,target:string,action:string,number?:string):Promise<{invitations:ProjectInvitation[]}>{const {data,error}=await client().rpc('brief_beta_project_link_action',{workspace_id:workspace,project_id:project,target,action,local_number:number??null});if(error)throw Error(error.message);return data;}
+
+export async function firmLookup(workspace:string,organizationNumber:string):Promise<Firm|null>{const {data,error}=await client().rpc('brief_beta_firm_lookup',{workspace_id:workspace,organization_number:organizationNumber});if(error)throw Error(error.message);return data;}
+export async function firmConnect(workspace:string,organizationNumber:string):Promise<FirmDirectory>{const {data,error}=await client().rpc('brief_beta_firm_connect',{workspace_id:workspace,organization_number:organizationNumber});if(error)throw Error(error.message);return data;}
+export async function firmRegister(workspace:string,organizationNumber:string):Promise<FirmDirectory>{const {data,error}=await client().rpc('brief_beta_firm_register',{workspace_id:workspace,organization_number:organizationNumber});if(error)throw Error(error.message);return data;}

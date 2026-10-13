@@ -1868,10 +1868,11 @@ export default function Home() {
           ))}
         {route === "/inbox" && <>
           <div className="page-heading"><h1>Inkorg</h1><button onClick={() => void refresh()} disabled={busy}>Uppdatera</button></div>
-          <p className="muted">Sparade byggdagböcker och avslutade arbetsorder som du har skapat.</p>
+          <p className="muted">Företagsförfrågningar, byggdagböcker och avslutade arbetsorder.</p>
+          {manager && <CompanySharing inbox workspace={s.workspace} revision={s.revision} demo={isDemo} onMessage={setMessage} onChanged={async()=>{setS(await cloud.load(s.workspace));}} />}
           <section className="panel content-panel inbox-list">
-            {!inbox.length && <div className="empty"><strong>Du är uppdaterad</strong><p>Din inkorg är tom. Nya byggdagböcker och avslutade arbetsorder visas här.</p></div>}
-            {inbox.map(item => <article key={item.id} className={"inbox-item " + (!item.readAt ? "unread" : "")}>
+            {!inbox.length && <div className="empty"><strong>Du är uppdaterad</strong><p>Din inkorg är tom. Nya företagsförfrågningar, byggdagböcker och avslutade arbetsorder visas här.</p></div>}
+            {inbox.filter(item => item.kind !== "firm").map(item => <article key={item.id} className={"inbox-item " + (!item.readAt ? "unread" : "")}>
               <div><small>{item.kind === "diary" ? "Byggdagboksrapport" : "Avslutad arbetsorder"} · {date(item.at)}</small><h2>{item.title}</h2><p>{item.sender}{!item.readAt ? " · Oläst" : " · Läst"}</p></div>
               <div className="actions"><button className="primary" onClick={() => {
                 if (item.kind === "diary" ? !s.projects.some(p => p.id === item.project) : !orders.some(o => o.id === item.order)) {setMessage("Rapportens projekt eller arbetsorder är inte längre tillgänglig.");return;}
@@ -1989,7 +1990,7 @@ export default function Home() {
                     : "Min företagsbank och kontaktpersoner."}
                 </p>
               </div>
-              <button
+              {route === "/projects" && <button
                 className="primary"
                 onClick={() =>
                   edit(route === "/projects" ? "project" : "company")
@@ -1998,11 +1999,11 @@ export default function Home() {
                 {route === "/projects"
                   ? "+ Lägg till projekt"
                   : "+ Lägg till företag"}
-              </button>
+              </button>}
             </div>
             {route === "/companies" && <CompanySharing workspace={s.workspace} revision={s.revision} demo={isDemo} onMessage={setMessage} onChanged={async()=>{setProfile(null);setS(await cloud.load(s.workspace));}} />}
             {route === "/projects" && <ProjectSharing workspace={s.workspace} revision={s.revision} demo={isDemo} projects={s.projects} onChanged={async()=>{setS(await cloud.load(s.workspace));}} />}
-            <div className="bank-grid">
+            {route === "/projects" && <div className="bank-grid">
               <section className="panel content-panel company-bank">
                 <h2>{route === "/projects" ? "Filtrera efter företag" : "Min företagsbank"}</h2>
                 <input
@@ -2056,39 +2057,6 @@ export default function Home() {
                     );
                   return (
                     <>
-                      {route === "/companies" && (
-                        <section className="panel content-panel">
-                          <div className="section-heading">
-                            <h2>{company.name}</h2>
-                            <div className="actions">
-                              {!company.shared&&<button onClick={() => edit("company", company)}>Redigera</button>}
-                              {!company.shared && !company.archived && (
-                                <button
-                                  onClick={() =>
-                                    confirmAction(
-                                      "Arkivera företag?",
-                                      <p>
-                                        Företaget och dess historik behålls.
-                                      </p>,
-                                      "Arkivera",
-                                      () =>
-                                        act({
-                                          kind: "archive_company",
-                                          id: company.id,
-                                        }),
-                                      false,
-                                    )
-                                  }
-                                >
-                                  Arkivera
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <p className="muted">{company.kind}</p>
-                          <CompanyOrganization company={company} people={people} workspace={s.workspace} revision={s.revision} demo={isDemo} onPerson={setProfile} />
-                        </section>
-                      )}
                       {route === "/projects" && (
                         <section className="panel content-panel">
                           <div className="section-heading">
@@ -2179,7 +2147,7 @@ export default function Home() {
                   );
                 })()}
               </div>
-            </div>
+            </div>}
           </>
         )}
         <Tips manager={manager} route={route} />
