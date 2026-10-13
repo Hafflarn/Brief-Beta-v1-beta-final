@@ -105,6 +105,7 @@ export const hasControls = (o: Order) =>
       o.controls?.[k]?.items.some((i) => i.done || i.comment || i.at),
   );
 export type Order = {
+  firmBrand?: FirmBrand;
   shared?: boolean;
   id: string;
   project: string;
@@ -131,7 +132,10 @@ export type Order = {
   notes: Note[];
   events: HistoryEvent[];
 };
+export type FirmBrand = {id:string;name:string;organizationNumber?:string;logo?:string};
 export type Snapshot = {
+  firmBrand?: FirmBrand;
+  printBrands?: FirmBrand[];
   passwordChangeSuggested?: boolean;
   user: string;
   workspace: string;

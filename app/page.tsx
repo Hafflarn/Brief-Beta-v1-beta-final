@@ -1,4 +1,5 @@
 "use client";
+import CompanyLogoUpload from "./components/company-logo-upload";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import Login from "./login";
 import BuildingDiary from "./components/building-diary";
@@ -1893,7 +1894,7 @@ export default function Home() {
               )}
             </div>
             <section className="panel content-panel">
-              <h2>{me.employer}</h2>
+              {s.firmBrand?.logo && <img className="company-logo-heading" src={s.firmBrand.logo} alt={me.employer+" logga"}/>}<h2>{me.employer}</h2>
                   {directoryPeople.map((p) => (
                     <div className="person-row" key={p.id}>
                       <button
@@ -1933,6 +1934,8 @@ export default function Home() {
         )}
         {(route === "/profile" || currentPerson) && (
           <Profile
+            logo={route === "/profile" || currentPerson?.firm === me.firm ? s.firmBrand?.logo : s.printBrands?.find(f=>f.id===currentPerson?.firm)?.logo}
+            logoUpload={manager && (route === "/profile" || currentPerson?.id === me.id) ? <CompanyLogoUpload workspace={s.workspace} logo={s.firmBrand?.logo} demo={isDemo} onChanged={async()=>{setS(await cloud.load(s.workspace));}}/> : undefined}
             person={route === "/profile" ? me : currentPerson!}
             self={route === "/profile" || currentPerson?.id === me.id}
             busy={busy}
@@ -2808,6 +2811,8 @@ export default function Home() {
   );
 }
 function Profile({
+  logo,
+  logoUpload,
   person,
   self,
   busy,
@@ -2817,6 +2822,8 @@ function Profile({
   onEdit,
   onPassword,
 }: {
+  logo?: string;
+  logoUpload?: React.ReactNode;
   person: Member;
   self: boolean;
   busy: boolean;
@@ -2840,10 +2847,10 @@ function Profile({
   return (
     <section className="panel content-panel narrow" key={person.id}>
       <div className="section-heading">
-        <h1>{self ? "Min profil" : person.name}</h1>
+        <h1>{self ? "Min profil" : person.name}</h1>{logo&&<img className="company-logo-profile" src={logo} alt="Företagslogga"/>}
         {onEdit && <button onClick={onEdit}>Redigera</button>}
       </div>
-      <h2 className="profile-section-title">Profiluppgifter</h2><dl className="profile-details">
+      {logoUpload}<h2 className="profile-section-title">Profiluppgifter</h2><dl className="profile-details">
         <dt>Namn</dt>
         <dd>{person.name}</dd>
         <dt>Yrkesroll</dt>

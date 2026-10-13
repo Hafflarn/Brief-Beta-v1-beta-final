@@ -1,79 +1,22 @@
-import {
-  Order,
-  Snapshot,
-  roles,
-  controlKinds,
-  controlLabels,
-  date,
-} from "./beta";
-const esc = (value: unknown) =>
-  String(value ?? "").replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        c
-      ]!,
-  );
-export function printOrder(o: Order, s: Snapshot) {
-  const popup = window.open("", "_blank");
-  if (!popup)
-    throw Error("Tillåt popupfönstret för att skriva ut eller spara PDF.");
-  const p = s.projects.find((p) => p.id === o.project);
-  const person = (id: string | null | undefined) =>
-    s.people.find((p) => p.id === id);
-  const name = (id: string | null | undefined) => person(id)?.name || "—";
-  const field = (label: string, value: unknown) =>
-    `<p><strong>${esc(label)}</strong><br>${esc(value)}</p>`;
-  const controls = controlKinds
-    .map((k) => {
-      const c = o.controls?.[k];
-      if (
-        !c ||
-        (!c.enabled && !c.items.some((i) => i.at || i.comment || i.done))
-      )
-        return "";
-      return (
-        `<h3>${controlLabels[k]}${c.enabled ? "" : " – avmarkerad"}</h3>` +
-        c.items
-          .map((i) =>
-            field(
-              (i.done ? "✓ " : "☐ ") + i.label,
-              [i.comment, i.at ? name(i.author) + " · " + date(i.at) : ""]
-                .filter(Boolean)
-                .join("\n"),
-            ),
-          )
-          .join("")
-      );
-    })
-    .join("");
-  popup.document.write(
-    `<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>${esc(o.number)} Serviceorder</title><style>body{font:12pt Arial,sans-serif;color:#173440;margin:36px;line-height:1.5}h1{font-size:24pt}h2{border-bottom:1px solid #d5e1e8;padding-top:14px}p{white-space:pre-wrap;break-inside:avoid}small{color:#536c7d}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media print{button{display:none}body{margin:0}h2,h3{break-after:avoid}}</style></head><body><strong>brēf</strong><h1>${esc(o.number)} · ${esc(o.title)}</h1><button id="print">Skriv ut / Spara som PDF</button><div class="grid">${field("Status", o.status)}${field("Ansvarig upprättare", name(o.issuedBy) + " · " + roles[person(o.issuedBy)?.role || "supervisor"])}${field("Utförare", name(o.assignee))}${field("Adress", o.address || p?.address)}${field("Eget projektnummer", p?.number)}${field("Beställare", s.companies.find((c) => c.id === p?.customer)?.name)}</div><small>Beställarens projektnummer: ${esc(p?.customerNumber || "—")}</small><h2>Arbetsbeskrivning</h2>${field("", o.description)}<h2>Planering och datum</h2>${field("Planerad start / färdigt", (o.start || "—") + " / " + (o.due || "—"))}${field("Påbörjad / avslutad", date(o.startedAt) + " / " + date(o.completedAt))}<h2>Kontakter och UE</h2>${(
-      p?.connections || []
-    )
-      .map((cn) => {
-        const firm = s.companies.find((c) => c.id === cn.company);
-        const ct = firm?.contacts.find((c) => c.id === cn.contact);
-        const member = person(cn.person);
-        return field(
-          firm?.name || member?.employer || "",
-          [
-            cn.function,
-            ct?.name || member?.name,
-            ct?.phone || member?.phone,
-            ct?.email || member?.email,
-          ]
-            .filter(Boolean)
-            .join(" · "),
-        );
-      })
-      .join(
-        "",
-      )}<h2>Nycklar och tillträde</h2>${field("", o.access)}${field("Nycklar", "Mottagna: " + (o.keysReceived ? "Ja" : "Ej markerat") + " · Återlämnade: " + (o.keysReturned ? "Ja" : "Ej markerat"))}<h2>Dagbok och bilagor</h2>${o.notes.map((n) => field(name(n.author) + " · " + date(n.at), [n.phase, typeof n.hours === "number" ? n.hours + " timmar" : "", n.text].filter(Boolean).join(" · ") + "\n" + n.files.map((f) => f.name).join("\n"))).join("")}<h2>Kontroller</h2>${controls || "<p>Inga kontroller valda.</p>"}</body></html>`,
-  );
-  popup.document.close();
-  popup.opener = null;
-  popup.document
-    .getElementById("print")
-    ?.addEventListener("click", () => popup.print());
+import {Order,Snapshot,roles,controlKinds,controlLabels,date} from './beta';
+export const escapePrint=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
+const E=escapePrint;
+const safeLogo=(v?:string)=>v&&/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(v)?v:'';
+export function orderPrintHtml(o:Order,s:Snapshot,origin:string){
+ const p=s.projects.find(p=>p.id===o.project),person=(id?:string|null)=>s.people.find(p=>p.id===id),name=(id?:string|null)=>person(id)?.name||'';
+ const brand=o.firmBrand||s.printBrands?.find(f=>f.id===person(o.issuedBy)?.firm)||s.firmBrand;
+ const cell=(label:string,value?:unknown)=>`<div class="field"><small>${E(label)}</small><div>${E(value)||'&nbsp;'}</div></div>`;
+ const identity=`<p class="identity">Ordernummer: ${E(o.number)} · Eget projektnummer: ${E(p?.number)}</p>`;
+ const empty=(n:number,columns:number,cls='')=>Array.from({length:n},()=>`<tr class="blank ${cls}">${'<td></td>'.repeat(columns)}</tr>`).join('');
+ const contacts=(p?.connections||[]).map(cn=>{const f=s.companies.find(f=>f.id===cn.company),ct=f?.contacts.find(c=>c.id===cn.contact),m=person(cn.person);return `<tr><td>${E(f?.name||m?.employer)}<br>${E(cn.function)}</td><td>${E(ct?.name||m?.name)}</td><td>${E(ct?.phone||m?.phone)}<br>${E(ct?.email||m?.email)}</td></tr>`;}).join('');
+ const controls=controlKinds.map(k=>{const c=o.controls?.[k];if(!c||(!c.enabled&&!c.items.some(i=>i.done||i.comment||i.at)))return '';return `<section><h2>${E(controlLabels[k])}${c.enabled?'':' · tidigare dokumentation'}</h2>${k==='self'?'<p>Valda egenkontrollpunkter ska vara utförda före avslut.</p>':''}<table><thead><tr><th>Kontrollpunkt</th><th class="done">Utförd</th><th class="signature">Datum / signatur</th><th>Resultat / kommentar</th></tr></thead><tbody>${c.items.map(i=>`<tr><td>${E(i.label)}</td><td>${i.done?'☒':'☐'}</td><td>${i.at?E(date(i.at))+'<br>'+E(name(i.author)):''}</td><td>${E(i.comment)}</td></tr>`).join('')||empty(2,4)}</tbody></table></section>`;}).join('');
+ const notes=o.notes.filter(n=>n.text||typeof n.hours==='number').map(n=>`<tr><td>${E(date(n.at))}</td><td>${E(n.phase||'Under')}</td><td>${E(name(n.author))}</td><td>${E(n.hours??'')}</td><td class="note">${E(n.text)}</td></tr>`).join('');
+ return `<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>${E(o.number)} Arbetsorder</title><style>
+ @page{size:A4;margin:12mm}*{box-sizing:border-box}body{font:10pt Arial,sans-serif;color:#111;margin:0;background:#eee}main{width:186mm;margin:auto;background:white;padding:0}h1{font-size:23pt;margin:6mm 0 3mm}h2{font-size:12pt;margin:4mm 0 2mm;break-after:avoid}p{margin:2mm 0;white-space:pre-wrap}small,.identity{font-size:8pt;color:#555}.brand-row{display:flex;justify-content:space-between;align-items:flex-start;min-height:18mm}.company-logo{max-width:55mm;height:17mm;object-fit:contain;object-position:left center;filter:grayscale(1)}.brief-logo{width:35mm;height:13mm;object-fit:contain;filter:grayscale(1);opacity:.32}.company-name{font-weight:bold}.grid{display:grid;grid-template-columns:1fr 1fr;border-left:1px solid #ccc;border-top:1px solid #ccc;margin:3mm 0}.field{padding:2mm 3mm;min-height:13mm;border-right:1px solid #ccc;border-bottom:1px solid #ccc;break-inside:avoid}.field div{white-space:pre-wrap;margin-top:1mm}.description{min-height:25mm;white-space:pre-wrap;border-bottom:1px solid #ddd;padding-bottom:3mm}table{border-collapse:collapse;width:100%;table-layout:fixed}th,td{border:1px solid #ccc;padding:2mm;text-align:left;vertical-align:top;overflow-wrap:anywhere;white-space:pre-wrap}th{background:#eee;font-size:9pt}thead{display:table-header-group}tr{break-inside:avoid}td{min-height:10mm}.blank td{height:12mm}.done{width:16mm}.signature{width:31mm}.section-page{break-before:page;padding-top:1mm}.section-page:first-child{break-before:auto}.lines{height:19mm;background:repeating-linear-gradient(white,white 7mm,#ddd 7mm,#ddd 7.2mm)}.diary .blank td{height:26mm}.diary th:nth-child(1){width:24mm}.diary th:nth-child(2){width:20mm}.diary th:nth-child(3){width:23mm}.diary th:nth-child(4){width:16mm}.note{white-space:pre-wrap}.print-action{margin:10px;padding:10px 20px}section{break-inside:auto} @media print{body{background:white}.print-action{display:none}main{width:auto}}
+ </style></head><body><button class="print-action" id="print">Skriv ut / Spara som PDF</button><main>
+ <article class="section-page"><div class="brand-row"><div>${safeLogo(brand?.logo)?`<img class="company-logo" src="${safeLogo(brand?.logo)}" alt="Företagslogga">`: `<div class="company-name">${E(brand?.name||person(o.issuedBy)?.employer)}</div>`}</div><img class="brief-logo" src="${E(origin)}/brand/brief-print.svg" alt="Brief"></div><h1>ARBETSORDER</h1>${identity}<div class="grid">${cell('Projektnamn / ort',p?.name)}${cell('Beställare',s.companies.find(c=>c.id===p?.customer)?.name)}${cell('Företag / organisationsnummer',[brand?.name,brand?.organizationNumber].filter(Boolean).join(' · '))}${cell('Arbetsplatsadress',o.address||p?.address)}${cell('Ansvarig upprättare / yrkesroll',name(o.issuedBy)+' · '+(person(o.issuedBy)?.job||roles[person(o.issuedBy)?.role||'supervisor']))}${cell('Utförare',name(o.assignee))}${cell('Status vid utskrift',o.status)}${cell('Deltagare',o.participants.map(n=>name(n.user)).filter(Boolean).join(', '))}</div><small>Beställarens projektnummer: ${E(p?.customerNumber)}</small><h2>Arbetsbeskrivning</h2><div class="description">${E(o.description)}</div><h2>Planering och datum</h2><div class="grid">${cell('Planerad start',o.start)}${cell('Planerat färdigt',o.due)}${cell('Påbörjad datum / tid',o.startedAt?date(o.startedAt):'')}${cell('Avslutad datum / tid',o.completedAt?date(o.completedAt):'')}</div><h2>Kontakter och underentreprenörer</h2><table><thead><tr><th>Företag / funktion</th><th>Kontaktperson</th><th>Telefon / e-post</th></tr></thead><tbody>${contacts||empty(2,3)}</tbody></table><h2>Nycklar och tillträde</h2><p>${E(o.access)}</p><p>${o.keysReceived?'☒':'☐'} Nycklar mottagna · Datum / signatur: ____________________<br>${o.keysReturned?'☒':'☐'} Nycklar återlämnade · Datum / signatur: ____________________</p></article>
+ <article class="section-page"><h2>Kontroller och avslut</h2>${identity}${controls||'<p>Inga kontroller valda.</p>'}<h2>Avslut och överlämnande</h2><p>☐ Arbetet färdigt   ☐ Valda egenkontroller utförda   ☐ Nycklar återlämnade</p><p>Slutkommentar / kvarstående arbeten</p><div class="lines"></div><div class="grid">${cell('Avslutad datum / tid',o.completedAt?date(o.completedAt):'')}${cell('Utförare namn / signatur')}</div></article>
+ <article class="section-page diary"><h2>Dagbok</h2>${identity}<p>Utfört arbete, avvikelser, störningar och ändringar. Avsnitt: Före, Under, Efter eller Handlingar.</p><table><thead><tr><th>Datum</th><th>Avsnitt</th><th>Signatur</th><th>Timmar</th><th>Utfört arbete / kommentarer</th></tr></thead><tbody>${notes}${empty(8,5)}</tbody></table></article>
+ </main></body></html>`;
 }
+export function printOrder(o:Order,s:Snapshot){const popup=window.open('','_blank');if(!popup)throw Error('Tillåt popupfönstret för att skriva ut eller spara PDF.');popup.document.write(orderPrintHtml(o,s,window.location.origin));popup.document.close();popup.opener=null;popup.document.getElementById('print')?.addEventListener('click',async()=>{await Promise.all(Array.from(popup.document.images).map(img=>img.decode().catch(()=>undefined)));popup.print();});}

@@ -1600,3 +1600,5 @@ button, input, select, textarea {border-radius:8px}
 .tips p{white-space:normal;overflow-wrap:anywhere}
 
 .primary-project-number>p{font-size:1.3rem;font-weight:700;margin-bottom:.35rem}.customer-project-number{display:block;color:var(--muted);font-size:.78rem}.project-sharing{margin-bottom:20px}.project-sharing form{margin:16px 0}.project-sharing form>strong{display:block}.project-sharing .actions{margin-top:12px}
+
+.company-logo-profile{width:90px;height:48px;object-fit:contain}.company-logo-heading{display:block;width:auto;max-width:min(320px,100%);height:100px;object-fit:contain;object-position:left center;margin-bottom:16px}.company-logo-upload{margin:16px 0}.company-logo-upload small{display:block;margin:8px 0}
